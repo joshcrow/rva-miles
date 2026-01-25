@@ -9,7 +9,8 @@ const withPWA = withPWAInit({
 });
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Use webpack build for next-pwa compatibility
+  turbopack: {},
 };
 
 export default withPWA(nextConfig);

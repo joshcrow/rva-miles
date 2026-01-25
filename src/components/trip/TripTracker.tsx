@@ -4,12 +4,13 @@ import { useState, useEffect, useCallback } from "react";
 import { Trip, Vehicle, GpsPoint } from "@/types";
 import { useGeolocation } from "@/hooks/useGeolocation";
 import { useWakeLock } from "@/hooks/useWakeLock";
+import { useNoSleep } from "@/hooks/useNoSleep";
+import { usePlatform } from "@/hooks/usePlatform";
 import {
   getVehicles,
   getActiveTrip,
   saveActiveTrip,
   addTrip,
-  updateTrip,
   generateId,
 } from "@/lib/storage";
 import { calculateTotalDistance, formatDistance, formatDuration } from "@/lib/geo";
@@ -27,9 +28,12 @@ export default function TripTracker({ onTripComplete }: TripTrackerProps) {
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>("");
   const [activeTrip, setActiveTrip] = useState<Trip | null>(null);
   const [showStopModal, setShowStopModal] = useState(false);
+  const [showIOSChecklist, setShowIOSChecklist] = useState(false);
   const [purpose, setPurpose] = useState("");
   const [adjustedMiles, setAdjustedMiles] = useState<string>("");
   const [elapsedTime, setElapsedTime] = useState(0);
+
+  const { isIOS, isAndroid, isMobile } = usePlatform();
 
   const {
     currentPosition,
@@ -40,15 +44,23 @@ export default function TripTracker({ onTripComplete }: TripTrackerProps) {
     startTracking,
     stopTracking,
     clearPoints,
-  } = useGeolocation({ trackingInterval: 3000 }); // Record every 3 seconds for city driving
+  } = useGeolocation({ trackingInterval: 3000 });
 
   const {
     isSupported: wakeLockSupported,
     isActive: wakeLockActive,
     request: requestWakeLock,
     release: releaseWakeLock,
-    error: wakeLockError,
   } = useWakeLock();
+
+  const {
+    isEnabled: noSleepEnabled,
+    enable: enableNoSleep,
+    disable: disableNoSleep,
+  } = useNoSleep();
+
+  // Determine if screen is being kept awake
+  const screenKeptAwake = wakeLockActive || noSleepEnabled;
 
   // Load vehicles and check for active trip on mount
   useEffect(() => {
@@ -95,21 +107,14 @@ export default function TripTracker({ onTripComplete }: TripTrackerProps) {
     }
   }, [gpsPoints, currentPosition]);
 
-  const handleStartTrip = useCallback(async () => {
-    if (!selectedVehicleId) {
-      alert("Please select a vehicle first");
-      return;
-    }
-
-    if (!geoSupported) {
-      alert("Geolocation is not supported on this device");
-      return;
-    }
-
-    // Request wake lock for iOS
+  const startTripTracking = useCallback(async () => {
+    // Try Wake Lock API first (works on Android Chrome, some desktop browsers)
     if (wakeLockSupported) {
       await requestWakeLock();
     }
+
+    // Also enable NoSleep.js as backup (especially for iOS)
+    await enableNoSleep();
 
     clearPoints();
     startTracking();
@@ -143,13 +148,38 @@ export default function TripTracker({ onTripComplete }: TripTrackerProps) {
     }, 1000);
   }, [
     selectedVehicleId,
-    geoSupported,
     wakeLockSupported,
     requestWakeLock,
+    enableNoSleep,
     clearPoints,
     startTracking,
     currentPosition,
   ]);
+
+  const handleStartTrip = useCallback(async () => {
+    if (!selectedVehicleId) {
+      alert("Please select a vehicle first");
+      return;
+    }
+
+    if (!geoSupported) {
+      alert("Geolocation is not supported on this device");
+      return;
+    }
+
+    // Show iOS checklist before starting (only on iOS, only on mobile)
+    if (isIOS && isMobile) {
+      setShowIOSChecklist(true);
+      return;
+    }
+
+    await startTripTracking();
+  }, [selectedVehicleId, geoSupported, isIOS, isMobile, startTripTracking]);
+
+  const handleIOSChecklistConfirm = useCallback(async () => {
+    setShowIOSChecklist(false);
+    await startTripTracking();
+  }, [startTripTracking]);
 
   const handleStopTrip = useCallback(() => {
     setShowStopModal(true);
@@ -162,6 +192,7 @@ export default function TripTracker({ onTripComplete }: TripTrackerProps) {
 
     const finalPoints = stopTracking();
     releaseWakeLock();
+    disableNoSleep();
 
     const finalMiles = parseFloat(adjustedMiles) || calculateTotalDistance(finalPoints);
 
@@ -191,6 +222,7 @@ export default function TripTracker({ onTripComplete }: TripTrackerProps) {
     activeTrip,
     stopTracking,
     releaseWakeLock,
+    disableNoSleep,
     adjustedMiles,
     currentPosition,
     purpose,
@@ -203,22 +235,16 @@ export default function TripTracker({ onTripComplete }: TripTrackerProps) {
     setAdjustedMiles("");
   }, []);
 
-  const handleResumeTrip = useCallback(() => {
-    if (wakeLockSupported) {
-      requestWakeLock();
-    }
-    startTracking();
-  }, [wakeLockSupported, requestWakeLock, startTracking]);
-
   const handleDiscardTrip = useCallback(() => {
     if (confirm("Are you sure you want to discard this trip?")) {
       stopTracking();
       releaseWakeLock();
+      disableNoSleep();
       saveActiveTrip(null);
       setActiveTrip(null);
       setElapsedTime(0);
     }
-  }, [stopTracking, releaseWakeLock]);
+  }, [stopTracking, releaseWakeLock, disableNoSleep]);
 
   const currentDistance = calculateTotalDistance(gpsPoints);
   const selectedVehicle = vehicles.find((v) => v.id === selectedVehicleId);
@@ -227,12 +253,30 @@ export default function TripTracker({ onTripComplete }: TripTrackerProps) {
   if (activeTrip) {
     return (
       <div className="space-y-4">
-        {/* iOS Warning */}
-        {wakeLockSupported && !wakeLockActive && (
+        {/* iOS-specific warning when screen protection isn't working */}
+        {isIOS && !screenKeptAwake && (
           <Card className="bg-yellow-900/50 border-yellow-700">
-            <p className="text-yellow-200 text-sm">
-              Keep screen active to ensure GPS tracking. Plug in your phone if needed.
-            </p>
+            <div className="flex items-start gap-3">
+              <span className="text-yellow-400 text-xl">⚠️</span>
+              <div>
+                <p className="text-yellow-200 text-sm font-medium">
+                  Keep your screen on
+                </p>
+                <p className="text-yellow-200/70 text-xs mt-1">
+                  iOS may pause tracking if the screen locks. Keep the app visible and phone plugged in.
+                </p>
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {/* Android success indicator */}
+        {isAndroid && screenKeptAwake && (
+          <Card className="bg-green-900/30 border-green-800">
+            <div className="flex items-center gap-2">
+              <span className="text-green-400">✓</span>
+              <p className="text-green-300 text-sm">Screen lock prevented</p>
+            </div>
           </Card>
         )}
 
@@ -270,7 +314,7 @@ export default function TripTracker({ onTripComplete }: TripTrackerProps) {
               {gpsPoints.length} GPS points recorded
               {currentPosition.accuracy && (
                 <span className="ml-2">
-                  (accuracy: {Math.round(currentPosition.accuracy)}m)
+                  (±{Math.round(currentPosition.accuracy)}m)
                 </span>
               )}
             </div>
@@ -354,45 +398,124 @@ export default function TripTracker({ onTripComplete }: TripTrackerProps) {
 
   // Render start trip UI
   return (
-    <Card variant="elevated" className="text-center">
-      <h2 className="text-xl font-semibold text-white mb-6">Start a Trip</h2>
+    <>
+      <Card variant="elevated" className="text-center">
+        <h2 className="text-xl font-semibold text-white mb-6">Start a Trip</h2>
 
-      <div className="mb-6">
-        <Select
-          label="Select Vehicle"
-          value={selectedVehicleId}
-          onChange={(e) => setSelectedVehicleId(e.target.value)}
-          options={vehicles.map((v) => ({
-            value: v.id,
-            label: v.name,
-          }))}
-        />
-      </div>
+        <div className="mb-6">
+          <Select
+            label="Select Vehicle"
+            value={selectedVehicleId}
+            onChange={(e) => setSelectedVehicleId(e.target.value)}
+            options={vehicles.map((v) => ({
+              value: v.id,
+              label: v.name,
+            }))}
+          />
+        </div>
 
-      {geoError && (
-        <p className="text-red-400 text-sm mb-4">{geoError}</p>
+        {geoError && (
+          <p className="text-red-400 text-sm mb-4">{geoError}</p>
+        )}
+
+        {!geoSupported && (
+          <p className="text-yellow-400 text-sm mb-4">
+            Geolocation is not supported on this device. You can still add trips manually.
+          </p>
+        )}
+
+        <Button
+          size="xl"
+          className="w-full"
+          onClick={handleStartTrip}
+          disabled={!selectedVehicleId || !geoSupported}
+        >
+          Start Trip
+        </Button>
+
+        {/* Platform-specific hints (only show relevant ones) */}
+        {isIOS && isMobile && (
+          <p className="text-slate-500 text-xs mt-4">
+            You&apos;ll see a quick checklist before starting to ensure accurate tracking.
+          </p>
+        )}
+
+        {isAndroid && isMobile && (
+          <p className="text-slate-500 text-xs mt-4">
+            Screen will stay on automatically during your trip.
+          </p>
+        )}
+      </Card>
+
+      {/* iOS Pre-Trip Checklist Modal */}
+      {showIOSChecklist && (
+        <div className="fixed inset-0 bg-black/70 flex items-end sm:items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md">
+            <h3 className="text-xl font-semibold text-white mb-2">
+              Before You Start
+            </h3>
+            <p className="text-slate-400 text-sm mb-4">
+              iOS limits background GPS tracking. For best results:
+            </p>
+
+            <div className="space-y-3 mb-6">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="mt-1 w-5 h-5 rounded border-slate-600 bg-slate-700 text-blue-600"
+                />
+                <div>
+                  <p className="text-white text-sm font-medium">Plug in your phone</p>
+                  <p className="text-slate-400 text-xs">Keeps battery from draining</p>
+                </div>
+              </label>
+
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="mt-1 w-5 h-5 rounded border-slate-600 bg-slate-700 text-blue-600"
+                />
+                <div>
+                  <p className="text-white text-sm font-medium">Keep screen visible</p>
+                  <p className="text-slate-400 text-xs">
+                    Set brightness low if needed, but don&apos;t lock
+                  </p>
+                </div>
+              </label>
+
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="mt-1 w-5 h-5 rounded border-slate-600 bg-slate-700 text-blue-600"
+                />
+                <div>
+                  <p className="text-white text-sm font-medium">Optional: Set Auto-Lock to Never</p>
+                  <p className="text-slate-400 text-xs">
+                    Settings → Display & Brightness → Auto-Lock
+                  </p>
+                </div>
+              </label>
+            </div>
+
+            <div className="flex gap-3">
+              <Button
+                variant="secondary"
+                className="flex-1"
+                onClick={() => setShowIOSChecklist(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                className="flex-1"
+                onClick={handleIOSChecklistConfirm}
+              >
+                Start Trip
+              </Button>
+            </div>
+          </Card>
+        </div>
       )}
-
-      {!geoSupported && (
-        <p className="text-yellow-400 text-sm mb-4">
-          Geolocation is not supported on this device. You can still add trips manually.
-        </p>
-      )}
-
-      <Button
-        size="xl"
-        className="w-full"
-        onClick={handleStartTrip}
-        disabled={!selectedVehicleId || !geoSupported}
-      >
-        Start Trip
-      </Button>
-
-      {wakeLockSupported === false && (
-        <p className="text-yellow-400 text-xs mt-4">
-          Screen Wake Lock not supported. Keep your screen on manually during trips.
-        </p>
-      )}
-    </Card>
+    </>
   );
 }

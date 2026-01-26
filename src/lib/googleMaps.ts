@@ -259,3 +259,65 @@ export async function geocodeAddress(address: string): Promise<{ lat: number; ln
     return null;
   }
 }
+
+export async function reverseGeocode(lat: number, lng: number): Promise<string | null> {
+  if (lat === 0 && lng === 0) return null;
+  
+  const quota = checkApiQuota();
+  if (quota.exceeded) {
+    return null;
+  }
+
+  const maps = await loadGoogleMapsAPI();
+  if (!maps) return null;
+
+  try {
+    trackApiCall();
+
+    const geocoder = new google.maps.Geocoder();
+    const result = await geocoder.geocode({ location: { lat, lng } });
+
+    if (!result.results || result.results.length === 0) {
+      return null;
+    }
+
+    // Try to find a street address or neighborhood
+    for (const r of result.results) {
+      if (r.types.includes("street_address") || r.types.includes("premise")) {
+        return r.formatted_address;
+      }
+    }
+
+    // Fall back to the first result, but try to shorten it
+    const first = result.results[0];
+    // Get a shorter version - typically the first 2-3 components
+    const parts = first.formatted_address.split(", ");
+    if (parts.length > 2) {
+      return parts.slice(0, 2).join(", ");
+    }
+    return first.formatted_address;
+  } catch (error) {
+    console.error("Error reverse geocoding:", error);
+    return null;
+  }
+}
+
+// Simple cache for reverse geocoding to avoid repeated API calls
+const geocodeCache = new Map<string, string>();
+
+export async function reverseGeocodeWithCache(lat: number, lng: number): Promise<string | null> {
+  if (lat === 0 && lng === 0) return null;
+  
+  // Round to 4 decimal places for cache key (~11m precision)
+  const key = `${lat.toFixed(4)},${lng.toFixed(4)}`;
+  
+  if (geocodeCache.has(key)) {
+    return geocodeCache.get(key) || null;
+  }
+  
+  const result = await reverseGeocode(lat, lng);
+  if (result) {
+    geocodeCache.set(key, result);
+  }
+  return result;
+}

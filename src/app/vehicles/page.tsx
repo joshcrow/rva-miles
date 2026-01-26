@@ -19,10 +19,12 @@ import {
   DialogActions,
   Box,
 } from '@mui/material';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import StarIcon from '@mui/icons-material/Star';
 import StarOutlineIcon from '@mui/icons-material/StarOutline';
+import { useRouter } from 'next/navigation';
 import { Vehicle } from '@/types';
 import {
   getVehicles,
@@ -34,6 +36,7 @@ import {
 import { useSnackbarStore } from '@/stores/snackbar';
 
 export default function VehiclesPage() {
+  const router = useRouter();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -142,10 +145,19 @@ export default function VehiclesPage() {
   };
 
   return (
-    <Container maxWidth="sm" sx={{ py: 3 }}>
-      <Typography variant="h4" fontWeight={700} gutterBottom>
-        Vehicles
-      </Typography>
+    <Container maxWidth="sm" sx={{ py: 2 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
+        <IconButton 
+          onClick={() => router.push('/settings')} 
+          sx={{ ml: -1 }}
+          aria-label="Back to settings"
+        >
+          <ArrowBackIcon />
+        </IconButton>
+        <Typography variant="h2">
+          Vehicles
+        </Typography>
+      </Box>
 
       <Stack spacing={2} sx={{ mb: 3 }}>
         {vehicles.map((vehicle) => (
@@ -172,31 +184,37 @@ export default function VehiclesPage() {
                 </Typography>
               )}
             </CardContent>
-            <CardActions>
+            <CardActions sx={{ px: 2.5, pb: 2, pt: 0, gap: 1 }}>
               {!vehicle.isDefault && (
                 <Button
                   size="small"
+                  variant="outlined"
                   startIcon={<StarOutlineIcon />}
                   onClick={() => handleSetDefault(vehicle.id)}
                 >
                   Set Default
                 </Button>
               )}
-              <IconButton
+              <Box sx={{ flex: 1 }} />
+              <Button
                 size="small"
+                variant="text"
+                startIcon={<EditOutlinedIcon />}
                 onClick={() => handleEdit(vehicle)}
-                aria-label="Edit vehicle"
+                sx={{ minWidth: 'auto', color: 'text.secondary' }}
               >
-                <EditIcon />
-              </IconButton>
-              <IconButton
+                Edit
+              </Button>
+              <Button
                 size="small"
+                variant="text"
+                startIcon={<DeleteOutlineIcon />}
                 onClick={() => handleDelete(vehicle.id)}
-                aria-label="Delete vehicle"
                 color="error"
+                sx={{ minWidth: 'auto' }}
               >
-                <DeleteIcon />
-              </IconButton>
+                Delete
+              </Button>
             </CardActions>
           </Card>
         ))}

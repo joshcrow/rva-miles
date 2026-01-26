@@ -66,15 +66,15 @@ export default function StopTripSheet({
           },
         }}
       >
-        <Box sx={{ p: 3 }}>
+        <Box sx={{ p: 2.5 }}>
           <Box
             sx={{
-              width: 40,
-              height: 4,
-              bgcolor: 'divider',
-              borderRadius: 2,
+              width: 48,
+              height: 5,
+              bgcolor: 'action.disabled',
+              borderRadius: 1,
               mx: 'auto',
-              mb: 2,
+              mb: 2.5,
             }}
           />
 
@@ -118,7 +118,6 @@ export default function StopTripSheet({
               size="large"
               fullWidth
               onClick={handleSave}
-              sx={{ minHeight: 56 }}
             >
               Save Trip
             </Button>

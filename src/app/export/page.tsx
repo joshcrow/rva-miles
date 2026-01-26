@@ -115,14 +115,14 @@ export default function ExportPage() {
   };
 
   return (
-    <Container maxWidth="sm" sx={{ py: 3 }}>
-      <Typography variant="h4" fontWeight={700} gutterBottom>
+    <Container maxWidth="sm" sx={{ py: 2 }}>
+      <Typography variant="h2" sx={{ mb: 3 }}>
         Export Trips
       </Typography>
 
       <Card>
         <CardContent>
-          <Stack spacing={3}>
+          <Stack spacing={2.5}>
             <TextField
               select
               label="Format"

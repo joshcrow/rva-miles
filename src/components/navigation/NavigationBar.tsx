@@ -12,18 +12,14 @@ import {
   DialogActions,
   Button,
 } from '@mui/material';
-import HomeIcon from '@mui/icons-material/Home';
 import DirectionsCarIcon from '@mui/icons-material/DirectionsCar';
 import DownloadIcon from '@mui/icons-material/Download';
-import AssessmentIcon from '@mui/icons-material/Assessment';
 import SettingsIcon from '@mui/icons-material/Settings';
 import { useTrackingStore } from '@/stores/tracking';
 
 const routes = [
-  { value: '/', label: 'Home', icon: <HomeIcon /> },
-  { value: '/vehicles', label: 'Vehicles', icon: <DirectionsCarIcon /> },
+  { value: '/', label: 'Drive', icon: <DirectionsCarIcon /> },
   { value: '/export', label: 'Export', icon: <DownloadIcon /> },
-  { value: '/reports', label: 'Reports', icon: <AssessmentIcon /> },
   { value: '/settings', label: 'Settings', icon: <SettingsIcon /> },
 ];
 
@@ -67,7 +63,7 @@ export default function NavigationBar() {
           borderColor: 'divider',
           opacity: isTracking ? 0.6 : 1,
           transition: 'opacity 0.3s',
-          zIndex: 1000,
+          zIndex: (theme) => theme.zIndex.appBar,
           height: 64,
           pb: 'env(safe-area-inset-bottom)',
         }}

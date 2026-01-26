@@ -19,6 +19,7 @@ import {
   DialogActions,
 } from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import EditNoteOutlinedIcon from '@mui/icons-material/EditNoteOutlined';
 import { Trip, Vehicle, GpsPoint } from '@/types';
 import { useGeolocation } from '@/hooks/useGeolocation';
 import { useWakeLock } from '@/hooks/useWakeLock';
@@ -31,12 +32,17 @@ import {
   getActiveTrip,
   saveActiveTrip,
   addTrip,
+  getTrips,
+  updateTrip,
+  deleteTrip,
   generateId,
 } from '@/lib/storage';
 import { calculateTotalDistance } from '@/lib/geo';
 import DriverModeCockpit from '@/components/trip/DriverModeCockpit';
 import StopTripSheet from '@/components/trip/StopTripSheet';
 import TrackingStatusIndicator from '@/components/trip/TrackingStatusIndicator';
+import ManualTripForm from '@/components/trip/ManualTripForm';
+import TripHistory from '@/components/trip/TripHistory';
 
 export default function HomePage() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -45,6 +51,8 @@ export default function HomePage() {
   const [elapsedTime, setElapsedTime] = useState(0);
   const [showStopSheet, setShowStopSheet] = useState(false);
   const [showIOSChecklist, setShowIOSChecklist] = useState(false);
+  const [showManualTripForm, setShowManualTripForm] = useState(false);
+  const [trips, setTrips] = useState<Trip[]>([]);
 
   const { isIOS, isMobile } = usePlatform();
   const { setTracking } = useTrackingStore();
@@ -85,6 +93,8 @@ export default function HomePage() {
     } else if (loadedVehicles.length > 0) {
       setSelectedVehicleId(loadedVehicles[0].id);
     }
+
+    setTrips(getTrips());
 
     const savedActiveTrip = getActiveTrip();
     if (savedActiveTrip) {
@@ -206,7 +216,8 @@ export default function HomePage() {
         updatedAt: Date.now(),
       };
 
-      addTrip(completedTrip);
+      const updatedTrips = addTrip(completedTrip);
+      setTrips(updatedTrips);
       saveActiveTrip(null);
       setActiveTrip(null);
       setShowStopSheet(false);
@@ -227,6 +238,24 @@ export default function HomePage() {
     setElapsedTime(0);
     showSnackbar({ message: 'Trip discarded', severity: 'info' });
   }, [stopTracking, releaseWakeLock, disableNoSleep, setTracking, showSnackbar]);
+
+  const handleSaveManualTrip = useCallback((trip: Trip) => {
+    const updatedTrips = addTrip(trip);
+    setTrips(updatedTrips);
+    showSnackbar({ message: 'Manual trip saved!', severity: 'success' });
+  }, [showSnackbar]);
+
+  const handleUpdateTrip = useCallback((trip: Trip) => {
+    const updatedTrips = updateTrip(trip);
+    setTrips(updatedTrips);
+    showSnackbar({ message: 'Trip updated', severity: 'success' });
+  }, [showSnackbar]);
+
+  const handleDeleteTrip = useCallback((tripId: string) => {
+    const updatedTrips = deleteTrip(tripId);
+    setTrips(updatedTrips);
+    showSnackbar({ message: 'Trip deleted', severity: 'success' });
+  }, [showSnackbar]);
 
   const currentDistance = calculateTotalDistance(gpsPoints);
   const selectedVehicle = vehicles.find((v) => v.id === selectedVehicleId);
@@ -273,16 +302,20 @@ export default function HomePage() {
   }
 
   return (
-    <Container maxWidth="sm" sx={{ py: 3 }}>
+    <Container maxWidth="sm" sx={{ py: 2 }}>
+      <Typography variant="h2" sx={{ mb: 3 }}>
+        Drive
+      </Typography>
+
       <Card>
-        <CardContent sx={{ textAlign: 'center', py: 4 }}>
+        <CardContent sx={{ textAlign: 'center', py: 3 }}>
           <TrackingStatusIndicator status="OFF" />
 
-          <Typography variant="h5" fontWeight={600} sx={{ mt: 4, mb: 3 }}>
+          <Typography variant="h4" sx={{ mt: 3, mb: 2.5 }}>
             Start a Trip
           </Typography>
 
-          <Stack spacing={3}>
+          <Stack spacing={2.5}>
             <TextField
               select
               label="Select Vehicle"
@@ -313,7 +346,6 @@ export default function HomePage() {
               startIcon={<PlayArrowIcon />}
               onClick={handleStartTrip}
               disabled={!selectedVehicleId || !geoSupported}
-              sx={{ minHeight: 60 }}
             >
               Start Trip
             </Button>
@@ -326,6 +358,38 @@ export default function HomePage() {
           </Stack>
         </CardContent>
       </Card>
+
+      <Button
+        variant="text"
+        fullWidth
+        startIcon={<EditNoteOutlinedIcon />}
+        onClick={() => setShowManualTripForm(true)}
+        sx={{ mt: 2, color: 'text.secondary' }}
+      >
+        Add Manual Trip
+      </Button>
+
+      <ManualTripForm
+        open={showManualTripForm}
+        onClose={() => setShowManualTripForm(false)}
+        vehicles={vehicles}
+        defaultVehicleId={selectedVehicleId}
+        onSave={handleSaveManualTrip}
+      />
+
+      {trips.length > 0 && (
+        <Box sx={{ mt: 4 }}>
+          <Typography variant="h6" sx={{ mb: 2 }}>
+            Recent Trips
+          </Typography>
+          <TripHistory
+            trips={trips.slice(0, 10)}
+            vehicles={vehicles}
+            onUpdateTrip={handleUpdateTrip}
+            onDeleteTrip={handleDeleteTrip}
+          />
+        </Box>
+      )}
 
       <Dialog open={showIOSChecklist} onClose={() => setShowIOSChecklist(false)}>
         <DialogTitle>Before You Start</DialogTitle>

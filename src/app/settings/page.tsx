@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Container,
   Typography,
@@ -11,47 +11,90 @@ import {
   Button,
   Switch,
   FormControlLabel,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
+  ToggleButton,
+  ToggleButtonGroup,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogContentText,
   DialogActions,
   Box,
-  Divider,
+  LinearProgress,
 } from '@mui/material';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import DirectionsCarIcon from '@mui/icons-material/DirectionsCar';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import CloudDownloadOutlinedIcon from '@mui/icons-material/CloudDownloadOutlined';
+import CloudUploadOutlinedIcon from '@mui/icons-material/CloudUploadOutlined';
+import { useRouter } from 'next/navigation';
 import { useThemeStore } from '@/stores/theme';
 import { useSnackbarStore } from '@/stores/snackbar';
 import { getSettings, saveSettings, getStorageSizeMB } from '@/lib/storage';
-import { clearAllData } from '@/lib/testData';
+import { clearAllData, addTestData, getTestDataSummary } from '@/lib/testData';
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <Typography
+      variant="overline"
+      sx={{
+        color: 'text.secondary',
+        fontWeight: 600,
+        letterSpacing: '0.1em',
+        px: 0.5,
+      }}
+    >
+      {children}
+    </Typography>
+  );
+}
 
 export default function SettingsPage() {
-  const { mode, toggleMode } = useThemeStore();
+  const router = useRouter();
+  const { preference, setPreference, syncWithSystem } = useThemeStore();
   const { showSnackbar } = useSnackbarStore();
+  
   const [settings, setLocalSettings] = useState(getSettings());
   const [irsRate, setIrsRate] = useState(settings.irsRate.toString());
   const [showDollarAmounts, setShowDollarAmounts] = useState(settings.showDollarAmounts);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [storageSize, setStorageSize] = useState(0);
+  const [tripSummary, setTripSummary] = useState({ totalTrips: 0, totalMiles: 0, dateRange: 'No trips' });
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleChange = () => syncWithSystem();
+    mediaQuery.addEventListener('change', handleChange);
+    return () => mediaQuery.removeEventListener('change', handleChange);
+  }, [syncWithSystem]);
 
   useEffect(() => {
     setStorageSize(getStorageSizeMB());
+    setTripSummary(getTestDataSummary());
   }, []);
 
-  const handleSaveIrsRate = () => {
-    const rate = parseFloat(irsRate);
-    if (isNaN(rate) || rate < 0.01 || rate > 2.0) {
-      showSnackbar({ message: 'Rate must be between $0.01 and $2.00 per mile', severity: 'error' });
-      return;
-    }
-    const newSettings = { ...settings, irsRate: rate, showDollarAmounts };
+  // Auto-save IRS rate with debounce
+  const saveRateSettings = useCallback((rate: number, showDollars: boolean) => {
+    const newSettings = { ...getSettings(), irsRate: rate, showDollarAmounts: showDollars };
     saveSettings(newSettings);
     setLocalSettings(newSettings);
-    showSnackbar({ message: 'Settings saved', severity: 'success' });
+  }, []);
+
+  useEffect(() => {
+    const rate = parseFloat(irsRate);
+    if (!isNaN(rate) && rate >= 0.01 && rate <= 2.0) {
+      const timer = setTimeout(() => {
+        saveRateSettings(rate, showDollarAmounts);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [irsRate, showDollarAmounts, saveRateSettings]);
+
+  const handleShowDollarAmountsChange = (checked: boolean) => {
+    setShowDollarAmounts(checked);
+    const rate = parseFloat(irsRate);
+    if (!isNaN(rate) && rate >= 0.01 && rate <= 2.0) {
+      saveRateSettings(rate, checked);
+    }
   };
 
   const handleClearTrips = () => {
@@ -119,112 +162,193 @@ export default function SettingsPage() {
     input.click();
   };
 
+  const storagePercent = (storageSize / 5) * 100;
+
   return (
-    <Container maxWidth="sm" sx={{ py: 3 }}>
-      <Typography variant="h4" fontWeight={700} gutterBottom>
+    <Container maxWidth="sm" sx={{ py: 2 }}>
+      <Typography variant="h2" sx={{ mb: 3 }}>
         Settings
       </Typography>
 
-      <Stack spacing={2}>
-        <Card>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
-              Appearance
-            </Typography>
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={mode === 'dark'}
-                  onChange={toggleMode}
-                />
-              }
-              label={mode === 'dark' ? 'Dark Mode' : 'Light Mode'}
-            />
-          </CardContent>
-        </Card>
+      <Stack spacing={3}>
+        {/* PREFERENCES SECTION */}
+        <Box>
+          <SectionLabel>Preferences</SectionLabel>
+          <Stack spacing={2} sx={{ mt: 1.5 }}>
+            <Card 
+              sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}
+              onClick={() => router.push('/vehicles')}
+            >
+              <CardContent sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <DirectionsCarIcon color="primary" />
+                  <Box>
+                    <Typography variant="body1" fontWeight={500}>Vehicles</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Manage your vehicles
+                    </Typography>
+                  </Box>
+                </Box>
+                <ChevronRightIcon color="action" />
+              </CardContent>
+            </Card>
 
-        <Card>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
-              IRS Mileage Rate
-            </Typography>
-            <Stack spacing={2}>
-              <TextField
-                label="Rate ($/mile)"
-                type="number"
-                inputProps={{ step: 0.01, min: 0.01, max: 2.0 }}
-                value={irsRate}
-                onChange={(e) => setIrsRate(e.target.value)}
-                helperText="Current IRS standard rate is $0.67/mile (2024)"
-                fullWidth
-              />
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={showDollarAmounts}
-                    onChange={(e) => setShowDollarAmounts(e.target.checked)}
+            <Card>
+              <CardContent>
+                <Typography variant="body1" fontWeight={500} gutterBottom>
+                  Appearance
+                </Typography>
+                <ToggleButtonGroup
+                  value={preference}
+                  exclusive
+                  onChange={(_, value) => value && setPreference(value)}
+                  fullWidth
+                  size="small"
+                >
+                  <ToggleButton value="light">Light</ToggleButton>
+                  <ToggleButton value="system">System</ToggleButton>
+                  <ToggleButton value="dark">Dark</ToggleButton>
+                </ToggleButtonGroup>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent>
+                <Typography variant="body1" fontWeight={500} gutterBottom>
+                  IRS Mileage Rate
+                </Typography>
+                <Stack spacing={2}>
+                  <TextField
+                    label="Rate ($/mile)"
+                    type="number"
+                    inputProps={{ step: 0.01, min: 0.01, max: 2.0 }}
+                    value={irsRate}
+                    onChange={(e) => setIrsRate(e.target.value)}
+                    helperText="2024 IRS standard: $0.67/mile"
+                    size="small"
                   />
-                }
-                label="Show dollar amounts"
-              />
-              <Button variant="contained" onClick={handleSaveIrsRate}>
-                Save Rate Settings
-              </Button>
-            </Stack>
-          </CardContent>
-        </Card>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={showDollarAmounts}
+                        onChange={(e) => handleShowDollarAmountsChange(e.target.checked)}
+                      />
+                    }
+                    label="Show dollar amounts"
+                  />
+                </Stack>
+              </CardContent>
+            </Card>
+          </Stack>
+        </Box>
 
-        <Accordion>
-          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-            <Typography>Data Management</Typography>
-          </AccordionSummary>
-          <AccordionDetails>
-            <Stack spacing={2}>
-              <Box>
-                <Typography variant="body2" color="text.secondary" gutterBottom>
-                  Storage Used
-                </Typography>
-                <Typography variant="h6">
-                  {storageSize.toFixed(2)} MB / 5 MB
-                </Typography>
-              </Box>
-              <Divider />
-              <Button variant="outlined" onClick={handleBackupData} fullWidth>
-                Export Backup
-              </Button>
-              <Button variant="outlined" onClick={handleRestoreData} fullWidth>
-                Restore from Backup
-              </Button>
-              <Divider />
-              <Button
-                variant="outlined"
-                color="warning"
-                onClick={() => setShowClearConfirm(true)}
-                fullWidth
-              >
-                Clear All Trips
-              </Button>
-              <Button
-                variant="outlined"
-                color="error"
-                onClick={() => setShowResetConfirm(true)}
-                fullWidth
-              >
-                Reset All Data
-              </Button>
-            </Stack>
-          </AccordionDetails>
-        </Accordion>
+        {/* DATA SECTION */}
+        <Box>
+          <SectionLabel>Data</SectionLabel>
+          <Stack spacing={2} sx={{ mt: 1.5 }}>
+            <Card>
+              <CardContent>
+                <Box sx={{ mb: 2 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                    <Typography variant="body2" color="text.secondary">
+                      Storage Used
+                    </Typography>
+                    <Typography variant="body2" fontWeight={500}>
+                      {storageSize.toFixed(2)} MB / 5 MB
+                    </Typography>
+                  </Box>
+                  <LinearProgress 
+                    variant="determinate" 
+                    value={storagePercent} 
+                    sx={{ 
+                      height: 6, 
+                      borderRadius: 1,
+                      bgcolor: 'action.hover',
+                    }} 
+                  />
+                </Box>
+                <Box sx={{ mb: 2, p: 1.5, borderRadius: 1, bgcolor: 'action.hover' }}>
+                  <Typography variant="body2" color="text.secondary">
+                    {tripSummary.totalTrips} trips • {tripSummary.totalMiles} miles
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {tripSummary.dateRange}
+                  </Typography>
+                </Box>
+                <Stack direction="row" spacing={1.5} sx={{ mb: 1.5 }}>
+                  <Button 
+                    variant="outlined" 
+                    onClick={handleBackupData} 
+                    fullWidth
+                    startIcon={<CloudDownloadOutlinedIcon />}
+                    size="small"
+                  >
+                    Export
+                  </Button>
+                  <Button 
+                    variant="outlined" 
+                    onClick={handleRestoreData} 
+                    fullWidth
+                    startIcon={<CloudUploadOutlinedIcon />}
+                    size="small"
+                  >
+                    Restore
+                  </Button>
+                </Stack>
+                <Button
+                  variant="text"
+                  size="small"
+                  fullWidth
+                  onClick={() => {
+                    const count = addTestData(4);
+                    setTripSummary(getTestDataSummary());
+                    setStorageSize(getStorageSizeMB());
+                    showSnackbar({ message: `Added ${count} test trips`, severity: 'success' });
+                  }}
+                  sx={{ color: 'text.secondary' }}
+                >
+                  Generate Test Data (4 weeks)
+                </Button>
+              </CardContent>
+            </Card>
+          </Stack>
+        </Box>
 
-        <Card>
-          <CardContent>
-            <Typography variant="body2" color="text.secondary" align="center">
-              RVA Miles v0.1.0
-              <br />
-              Built with Material UI
-            </Typography>
-          </CardContent>
-        </Card>
+        {/* RESET SECTION */}
+        <Box>
+          <SectionLabel>Reset</SectionLabel>
+          <Stack spacing={2} sx={{ mt: 1.5 }}>
+            <Card sx={{ borderColor: 'error.main', borderWidth: 1, borderStyle: 'solid' }}>
+              <CardContent>
+                <Stack spacing={1.5}>
+                  <Button
+                    variant="text"
+                    color="warning"
+                    onClick={() => setShowClearConfirm(true)}
+                    fullWidth
+                    sx={{ justifyContent: 'flex-start' }}
+                  >
+                    Clear All Trips
+                  </Button>
+                  <Button
+                    variant="text"
+                    color="error"
+                    onClick={() => setShowResetConfirm(true)}
+                    fullWidth
+                    sx={{ justifyContent: 'flex-start' }}
+                  >
+                    Reset Everything
+                  </Button>
+                </Stack>
+              </CardContent>
+            </Card>
+          </Stack>
+        </Box>
+
+        {/* ABOUT */}
+        <Typography variant="caption" color="text.secondary" align="center" sx={{ pt: 1 }}>
+          RVA Miles v0.1.0
+        </Typography>
       </Stack>
 
       <Dialog open={showClearConfirm} onClose={() => setShowClearConfirm(false)}>

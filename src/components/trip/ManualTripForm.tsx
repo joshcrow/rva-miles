@@ -12,15 +12,17 @@ import Select from "@/components/ui/Select";
 import { LocationAutocomplete } from "@/components/ui/LocationAutocomplete";
 
 interface ManualTripFormProps {
-  trip?: Trip | null; // If provided, we're editing
+  trip?: Trip | null;
   onClose: () => void;
-  onSave: (trip: Trip) => void;
+  onSave: (trip?: Trip) => void;
+  bulkMode?: boolean;
 }
 
 export default function ManualTripForm({
   trip,
   onClose,
   onSave,
+  bulkMode = false,
 }: ManualTripFormProps) {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [categories, setCategories] = useState<TripCategory[]>([]);
@@ -198,6 +200,21 @@ export default function ManualTripForm({
       addTrip(returnTrip);
     }
 
+    if (bulkMode) {
+      setStartAddress('');
+      setEndAddress('');
+      setStartLocation(null);
+      setEndLocation(null);
+      setDistance('');
+      setPurpose('');
+      setRoutePolyline('');
+      setHasCalculatedRoute(false);
+      setRouteError('');
+      const tomorrow = new Date(date);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      setDate(tomorrow.toISOString().split('T')[0]);
+    }
+
     onSave(tripData);
   };
 
@@ -205,7 +222,7 @@ export default function ManualTripForm({
     <div className="fixed inset-0 bg-black/70 flex items-end sm:items-center justify-center z-50 p-4">
       <Card className="w-full max-w-md max-h-[90vh] overflow-y-auto">
         <h3 className="text-xl font-semibold text-white mb-4">
-          {isEditing ? "Edit Trip" : "Add Manual Trip"}
+          {bulkMode ? "Bulk Entry Mode" : isEditing ? "Edit Trip" : "Add Manual Trip"}
         </h3>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -382,10 +399,10 @@ export default function ManualTripForm({
               className="flex-1"
               onClick={onClose}
             >
-              Cancel
+              {bulkMode ? "Done" : "Cancel"}
             </Button>
             <Button type="submit" variant="primary" className="flex-1">
-              {isEditing ? "Save Changes" : "Add Trip"}
+              {bulkMode ? "Save & Next" : isEditing ? "Save Changes" : "Add Trip"}
             </Button>
           </div>
         </form>

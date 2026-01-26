@@ -14,7 +14,7 @@ import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import { addTestData, clearAllData, getTestDataSummary } from "@/lib/testData";
-import { getSettings, saveSettings, checkStorageLimit } from "@/lib/storage";
+import { getSettings, saveSettings, checkStorageLimit, getTripCategories, getTrips as getTripsFromStorage, getVehicles as getVehiclesFromStorage } from "@/lib/storage";
 import { checkApiQuota } from "@/lib/googleMaps";
 
 type View = "home" | "vehicles" | "export" | "settings";
@@ -24,6 +24,9 @@ function AppContent() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [showManualForm, setShowManualForm] = useState(false);
   const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
+  const [bulkEntryMode, setBulkEntryMode] = useState(false);
+  const [bulkEntryCount, setBulkEntryCount] = useState(0);
+  const [lastSavedTrip, setLastSavedTrip] = useState<Trip | null>(null);
 
   const handleTripComplete = useCallback(() => {
     setRefreshKey((k) => k + 1);
@@ -48,15 +51,42 @@ function AppContent() {
     setShowManualForm(true);
   }, []);
 
-  const handleSaveTrip = useCallback(() => {
-    setShowManualForm(false);
-    setEditingTrip(null);
-    setRefreshKey((k) => k + 1);
-  }, []);
+  const handleSaveTrip = useCallback((savedTrip?: Trip) => {
+    if (bulkEntryMode && savedTrip) {
+      setBulkEntryCount((c) => c + 1);
+      setLastSavedTrip(savedTrip);
+      setEditingTrip(null);
+      setRefreshKey((k) => k + 1);
+    } else {
+      setShowManualForm(false);
+      setEditingTrip(null);
+      setBulkEntryMode(false);
+      setBulkEntryCount(0);
+      setLastSavedTrip(null);
+      setRefreshKey((k) => k + 1);
+    }
+  }, [bulkEntryMode]);
 
   const handleCloseForm = useCallback(() => {
-    setShowManualForm(false);
-    setEditingTrip(null);
+    if (bulkEntryMode) {
+      if (confirm('Exit bulk mode? Current unsaved trip will be lost.')) {
+        setShowManualForm(false);
+        setEditingTrip(null);
+        setBulkEntryMode(false);
+        setBulkEntryCount(0);
+        setLastSavedTrip(null);
+      }
+    } else {
+      setShowManualForm(false);
+      setEditingTrip(null);
+    }
+  }, [bulkEntryMode]);
+
+  const handleStartBulkEntry = useCallback(() => {
+    setBulkEntryMode(true);
+    setBulkEntryCount(0);
+    setLastSavedTrip(null);
+    setShowManualForm(true);
   }, []);
 
   return (
@@ -182,13 +212,22 @@ function AppContent() {
 
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-white">Trip History</h2>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowManualForm(true)}
-              >
-                + Add Manual
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleStartBulkEntry}
+                >
+                  Bulk Entry
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowManualForm(true)}
+                >
+                  + Add Manual
+                </Button>
+              </div>
             </div>
 
             <TripHistory
@@ -217,11 +256,24 @@ function AppContent() {
 
       {/* Manual Trip Form Modal */}
       {showManualForm && (
-        <ManualTripForm
-          trip={editingTrip}
-          onClose={handleCloseForm}
-          onSave={handleSaveTrip}
-        />
+        <>
+          {bulkEntryMode && bulkEntryCount > 0 && (
+            <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg">
+              <p className="text-sm font-medium">Bulk Entry: Trip {bulkEntryCount} saved</p>
+              {lastSavedTrip && (
+                <p className="text-xs mt-1">
+                  Last: {lastSavedTrip.startAddress || 'Location'} → {lastSavedTrip.endAddress || 'Location'}, {lastSavedTrip.distanceMiles.toFixed(1)} mi
+                </p>
+              )}
+            </div>
+          )}
+          <ManualTripForm
+            trip={editingTrip}
+            onClose={handleCloseForm}
+            onSave={handleSaveTrip}
+            bulkMode={bulkEntryMode}
+          />
+        </>
       )}
     </div>
   );
@@ -252,10 +304,8 @@ function ExportView({ onBack }: { onBack: () => void }) {
   const categories = getTripCategories();
 
   useEffect(() => {
-    import('@/lib/storage').then(({ getTrips, getVehicles }) => {
-      setTrips(getTrips());
-      setVehicles(getVehicles());
-    });
+    setTrips(getTripsFromStorage());
+    setVehicles(getVehiclesFromStorage());
   }, []);
 
   const handleExport = async () => {
@@ -404,7 +454,7 @@ function ExportView({ onBack }: { onBack: () => void }) {
               className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-xl text-white"
             >
               <option value="">All Categories</option>
-              {categories.map((cat) => (
+              {categories.map((cat: { id: string; name: string }) => (
                 <option key={cat.id} value={cat.name}>{cat.name}</option>
               ))}
             </select>

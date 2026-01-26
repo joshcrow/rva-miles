@@ -56,7 +56,7 @@ function AppContent() {
               onClick={() => setCurrentView("home")}
               className={`p-2 rounded-lg transition-colors ${
                 currentView === "home"
-                  ? "bg-slate-800 text-white"
+                  ? "bg-fuchsia-500 text-white"
                   : "text-slate-400 hover:text-white"
               }`}
               title="Home"
@@ -79,7 +79,7 @@ function AppContent() {
               onClick={() => setCurrentView("vehicles")}
               className={`p-2 rounded-lg transition-colors ${
                 currentView === "vehicles"
-                  ? "bg-slate-800 text-white"
+                  ? "bg-fuchsia-500 text-white"
                   : "text-slate-400 hover:text-white"
               }`}
               title="Vehicles"
@@ -108,7 +108,7 @@ function AppContent() {
               onClick={() => setCurrentView("export")}
               className={`p-2 rounded-lg transition-colors ${
                 currentView === "export"
-                  ? "bg-slate-800 text-white"
+                  ? "bg-fuchsia-500 text-white"
                   : "text-slate-400 hover:text-white"
               }`}
               title="Export"
@@ -131,7 +131,7 @@ function AppContent() {
               onClick={() => setCurrentView("settings")}
               className={`p-2 rounded-lg transition-colors ${
                 currentView === "settings"
-                  ? "bg-slate-800 text-white"
+                  ? "bg-fuchsia-500 text-white"
                   : "text-slate-400 hover:text-white"
               }`}
               title="Settings"

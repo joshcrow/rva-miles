@@ -101,3 +101,18 @@ export function formatDuration(startTime: number, endTime: number | null): strin
   }
   return `${minutes}m`;
 }
+
+/**
+ * Format dollar amount for display
+ */
+export function formatDollarAmount(miles: number, rate: number): string {
+  const amount = miles * rate;
+  return `$${amount.toFixed(2)}`;
+}
+
+/**
+ * Calculate trip reimbursement
+ */
+export function calculateTripReimbursement(distanceMiles: number, rate: number): number {
+  return distanceMiles * rate;
+}

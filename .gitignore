@@ -45,3 +45,11 @@ public/workbox-*.js.map
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# custom directories
+_bmad/
+_bmad-output/
+.agent/
+.agentvibes
+.claude
+.cursor

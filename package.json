@@ -9,14 +9,21 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@googlemaps/js-api-loader": "^1.16.0",
+    "@googlemaps/polyline-codec": "^1.0.28",
+    "jspdf": "^2.5.1",
+    "jspdf-autotable": "^3.8.0",
     "next": "16.1.4",
     "next-pwa": "^5.6.0",
     "nosleep.js": "^0.12.0",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "simplify-js": "^1.2.4",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/google.maps": "^3.55.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

@@ -1,12 +1,15 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Trip, Vehicle } from "@/types";
-import { getVehicles, addTrip, updateTrip, generateId } from "@/lib/storage";
+import { Trip, Vehicle, GpsPoint, TripCategory, SavedPlace } from "@/types";
+import { getVehicles, addTrip, updateTrip, generateId, getTripCategories, getSavedPlaces } from "@/lib/storage";
+import { calculateRoute } from "@/lib/googleMaps";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
+import { LocationAutocomplete } from "@/components/ui/LocationAutocomplete";
 
 interface ManualTripFormProps {
   trip?: Trip | null; // If provided, we're editing
@@ -20,33 +23,54 @@ export default function ManualTripForm({
   onSave,
 }: ManualTripFormProps) {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [categories, setCategories] = useState<TripCategory[]>([]);
+  const [savedPlaces, setSavedPlaces] = useState<SavedPlace[]>([]);
   const [vehicleId, setVehicleId] = useState("");
   const [date, setDate] = useState("");
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
   const [distance, setDistance] = useState("");
   const [purpose, setPurpose] = useState("");
-
+  const [category, setCategory] = useState("");
+  
+  const [startAddress, setStartAddress] = useState("");
+  const [endAddress, setEndAddress] = useState("");
+  const [startLocation, setStartLocation] = useState<GpsPoint | null>(null);
+  const [endLocation, setEndLocation] = useState<GpsPoint | null>(null);
+  const [routePolyline, setRoutePolyline] = useState<string>("");
+  const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
+  const [routeError, setRouteError] = useState<string>("");
+  const [hasCalculatedRoute, setHasCalculatedRoute] = useState(false);
+  const [createReturnTrip, setCreateReturnTrip] = useState(false);
+  
+  const { isOnline } = useOnlineStatus();
   const isEditing = !!trip;
 
   useEffect(() => {
     const loadedVehicles = getVehicles();
+    const loadedCategories = getTripCategories();
+    const loadedPlaces = getSavedPlaces();
     setVehicles(loadedVehicles);
+    setCategories(loadedCategories);
+    setSavedPlaces(loadedPlaces);
 
     if (trip) {
-      // Populate form with existing trip data
       setVehicleId(trip.vehicleId);
       setDate(new Date(trip.startTime).toISOString().split("T")[0]);
-      setStartTime(
-        new Date(trip.startTime).toTimeString().slice(0, 5)
-      );
+      setStartTime(new Date(trip.startTime).toTimeString().slice(0, 5));
       if (trip.endTime) {
         setEndTime(new Date(trip.endTime).toTimeString().slice(0, 5));
       }
       setDistance(trip.distanceMiles.toString());
       setPurpose(trip.purpose);
+      setCategory(trip.category || "");
+      setStartAddress(trip.startAddress || "");
+      setEndAddress(trip.endAddress || "");
+      if (trip.routePolyline) {
+        setRoutePolyline(trip.routePolyline);
+        setHasCalculatedRoute(true);
+      }
     } else {
-      // Set defaults for new trip
       const defaultVehicle = loadedVehicles.find((v) => v.isDefault);
       if (defaultVehicle) {
         setVehicleId(defaultVehicle.id);
@@ -55,46 +79,123 @@ export default function ManualTripForm({
     }
   }, [trip]);
 
+  const handleCalculateRoute = async () => {
+    if (!startLocation || !endLocation) {
+      setRouteError("Please select both start and end locations");
+      return;
+    }
+
+    setIsCalculatingRoute(true);
+    setRouteError("");
+
+    try {
+      const result = await calculateRoute(
+        { lat: startLocation.lat, lng: startLocation.lng },
+        { lat: endLocation.lat, lng: endLocation.lng }
+      );
+
+      if (result) {
+        if (result.distance < 0.1) {
+          setRouteError("Start and end are too close. Minimum 0.1 miles.");
+          setIsCalculatingRoute(false);
+          return;
+        }
+        setDistance(result.distance.toFixed(2));
+        setRoutePolyline(result.polyline);
+        setStartAddress(result.startAddress);
+        setEndAddress(result.endAddress);
+        setHasCalculatedRoute(true);
+      } else {
+        setRouteError("Unable to calculate route. Please enter distance manually.");
+      }
+    } catch (error) {
+      setRouteError("Route calculation failed. Please try again or enter distance manually.");
+    } finally {
+      setIsCalculatingRoute(false);
+    }
+  };
+
+  const handleLocationChange = () => {
+    setHasCalculatedRoute(false);
+    setRoutePolyline("");
+    setDistance("");
+    setRouteError("");
+  };
+
+  const handleUseSavedPlace = (placeId: string, isStart: boolean) => {
+    const place = savedPlaces.find(p => p.id === placeId);
+    if (place) {
+      if (isStart) {
+        setStartAddress(place.address);
+        setStartLocation(place.location);
+      } else {
+        setEndAddress(place.address);
+        setEndLocation(place.location);
+      }
+      handleLocationChange();
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!vehicleId || !date || !distance) {
+    if (!vehicleId || !date) {
       alert("Please fill in all required fields");
       return;
     }
 
-    const distanceMiles = parseFloat(distance);
-    if (isNaN(distanceMiles) || distanceMiles < 0) {
-      alert("Please enter a valid distance");
+    if (!distance || parseFloat(distance) <= 0) {
+      alert("Please calculate route or enter distance manually");
       return;
     }
 
-    // Create timestamps from date and time inputs
+    const distanceMiles = parseFloat(distance);
     const startDateTime = new Date(`${date}T${startTime || "09:00"}`);
     const endDateTime = endTime
       ? new Date(`${date}T${endTime}`)
-      : new Date(startDateTime.getTime() + 30 * 60000); // Default 30 min trip
+      : new Date(startDateTime.getTime() + 30 * 60000);
 
     const tripData: Trip = {
       id: trip?.id || generateId(),
       vehicleId,
       startTime: startDateTime.getTime(),
       endTime: endDateTime.getTime(),
-      startLocation: trip?.startLocation || { lat: 0, lng: 0, timestamp: startDateTime.getTime() },
-      endLocation: trip?.endLocation || { lat: 0, lng: 0, timestamp: endDateTime.getTime() },
+      startLocation: startLocation || trip?.startLocation || { lat: 0, lng: 0, timestamp: startDateTime.getTime() },
+      endLocation: endLocation || trip?.endLocation || { lat: 0, lng: 0, timestamp: endDateTime.getTime() },
       gpsPoints: trip?.gpsPoints || [],
       distanceMiles,
       purpose: purpose.trim(),
       status: "completed",
-      isManualEntry: !trip || trip.isManualEntry,
+      isManualEntry: true,
       createdAt: trip?.createdAt || Date.now(),
       updatedAt: Date.now(),
+      routePolyline: routePolyline || trip?.routePolyline,
+      startAddress: startAddress || trip?.startAddress,
+      endAddress: endAddress || trip?.endAddress,
+      estimatedRoute: hasCalculatedRoute,
+      category: category || undefined,
     };
 
     if (isEditing) {
       updateTrip(tripData);
     } else {
       addTrip(tripData);
+    }
+
+    if (createReturnTrip && !isEditing) {
+      const returnTrip: Trip = {
+        ...tripData,
+        id: generateId(),
+        startTime: endDateTime.getTime() + 30 * 60000,
+        endTime: endDateTime.getTime() + 60 * 60000,
+        startLocation: tripData.endLocation!,
+        endLocation: tripData.startLocation,
+        startAddress: tripData.endAddress,
+        endAddress: tripData.startAddress,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+      addTrip(returnTrip);
     }
 
     onSave(tripData);
@@ -141,6 +242,98 @@ export default function ManualTripForm({
             />
           </div>
 
+          {!isOnline && (
+            <div className="bg-yellow-900/30 border border-yellow-700 rounded-lg p-3">
+              <p className="text-sm text-yellow-400">⚠️ Offline - Route calculation unavailable. Enter distance manually.</p>
+            </div>
+          )}
+
+          <div>
+            <LocationAutocomplete
+              label="Start Location"
+              value={startAddress}
+              onChange={(val) => {
+                setStartAddress(val);
+                handleLocationChange();
+              }}
+              onValidSelection={(loc, addr) => {
+                setStartLocation(loc);
+                setStartAddress(addr);
+                handleLocationChange();
+              }}
+              placeholder="Enter start address..."
+              disabled={!isOnline}
+            />
+            {savedPlaces.length > 0 && (
+              <div className="mt-2">
+                <Select
+                  label="Or use saved place"
+                  value=""
+                  onChange={(e) => handleUseSavedPlace(e.target.value, true)}
+                  options={[
+                    { value: "", label: "Select saved place..." },
+                    ...savedPlaces.map((p) => ({ value: p.id, label: p.name }))
+                  ]}
+                />
+              </div>
+            )}
+          </div>
+
+          <div>
+            <LocationAutocomplete
+              label="End Location"
+              value={endAddress}
+              onChange={(val) => {
+                setEndAddress(val);
+                handleLocationChange();
+              }}
+              onValidSelection={(loc, addr) => {
+                setEndLocation(loc);
+                setEndAddress(addr);
+                handleLocationChange();
+              }}
+              placeholder="Enter end address..."
+              disabled={!isOnline}
+            />
+            {savedPlaces.length > 0 && (
+              <div className="mt-2">
+                <Select
+                  label="Or use saved place"
+                  value=""
+                  onChange={(e) => handleUseSavedPlace(e.target.value, false)}
+                  options={[
+                    { value: "", label: "Select saved place..." },
+                    ...savedPlaces.map((p) => ({ value: p.id, label: p.name }))
+                  ]}
+                />
+              </div>
+            )}
+          </div>
+
+          {startLocation && endLocation && !hasCalculatedRoute && (
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={handleCalculateRoute}
+              disabled={isCalculatingRoute || !isOnline}
+              className="w-full"
+            >
+              {isCalculatingRoute ? "Calculating..." : "Calculate Route"}
+            </Button>
+          )}
+
+          {hasCalculatedRoute && (
+            <div className="bg-green-900/30 border border-green-700 rounded-lg p-3">
+              <p className="text-sm text-green-400">✓ Route calculated: {startAddress} → {endAddress} ({distance} miles)</p>
+            </div>
+          )}
+
+          {routeError && (
+            <div className="bg-red-900/30 border border-red-700 rounded-lg p-3">
+              <p className="text-sm text-red-400">{routeError}</p>
+            </div>
+          )}
+
           <Input
             label="Distance (miles)"
             type="number"
@@ -150,6 +343,17 @@ export default function ManualTripForm({
             onChange={(e) => setDistance(e.target.value)}
             placeholder="e.g., 12.5"
             required
+            disabled={hasCalculatedRoute && !routeError}
+          />
+
+          <Select
+            label="Category (optional)"
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            options={[
+              { value: "", label: "None" },
+              ...categories.map((c) => ({ value: c.name, label: c.name }))
+            ]}
           />
 
           <Input
@@ -158,6 +362,18 @@ export default function ManualTripForm({
             onChange={(e) => setPurpose(e.target.value)}
             placeholder="e.g., Client meeting"
           />
+
+          {!isEditing && (
+            <label className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                checked={createReturnTrip}
+                onChange={(e) => setCreateReturnTrip(e.target.checked)}
+                className="w-4 h-4 bg-slate-800 border-slate-700 rounded"
+              />
+              <span className="text-sm text-slate-200">Create return trip</span>
+            </label>
+          )}
 
           <div className="flex gap-3 pt-4">
             <Button

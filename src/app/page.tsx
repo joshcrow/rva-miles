@@ -107,7 +107,7 @@ function AppContent() {
       <header className="sticky top-0 z-40 bg-slate-900/95 backdrop-blur border-b border-slate-800">
         <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
           <h1 className="text-xl font-bold text-white">RVA Miles</h1>
-          <nav className="flex items-center gap-2">
+          <nav className="flex items-center gap-1">
             <button
               onClick={() => setCurrentView("home")}
               className={`p-2 rounded-lg transition-colors ${
@@ -180,6 +180,29 @@ function AppContent() {
                   strokeLinejoin="round"
                   strokeWidth={2}
                   d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                />
+              </svg>
+            </button>
+            <button
+              onClick={() => setCurrentView("reports")}
+              className={`p-2 rounded-lg transition-colors ${
+                currentView === "reports"
+                  ? "bg-fuchsia-500 text-white"
+                  : "text-slate-400 hover:text-white"
+              }`}
+              title="Reports"
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
                 />
               </svg>
             </button>

@@ -1,1112 +1,351 @@
-"use client";
+'use client';
 
-import { useState, useCallback, useEffect } from "react";
-import { Trip } from "@/types";
-import PinGate from "@/components/auth/PinGate";
-import TripTracker from "@/components/trip/TripTracker";
-import TripHistory from "@/components/trip/TripHistory";
-import ManualTripForm from "@/components/trip/ManualTripForm";
-import VehicleManager from "@/components/vehicle/VehicleManager";
-import SavedPlaceManager from "@/components/place/SavedPlaceManager";
-import TripTemplateManager from "@/components/trip/TripTemplateManager";
-import TripCategoryManager from "@/components/trip/TripCategoryManager";
-import Button from "@/components/ui/Button";
-import Card from "@/components/ui/Card";
-import Input from "@/components/ui/Input";
-import { addTestData, clearAllData, getTestDataSummary } from "@/lib/testData";
-import { getSettings, saveSettings, checkStorageLimit, getTripCategories, getTrips as getTripsFromStorage, getVehicles as getVehiclesFromStorage } from "@/lib/storage";
-import { checkApiQuota } from "@/lib/googleMaps";
-import { useStaleTrip } from "@/hooks/useStaleTrip";
-import { useMultiTabDetection } from "@/hooks/useMultiTabDetection";
-import { useTheme } from "@/hooks/useTheme";
-import { useHighContrast } from "@/hooks/useHighContrast";
-import { usePWAInstall } from "@/hooks/usePWAInstall";
-import ReportsView from "@/components/reports/ReportsView";
+import { useState, useEffect, useCallback } from 'react';
+import {
+  Container,
+  Typography,
+  Card,
+  CardContent,
+  Button,
+  Stack,
+  MenuItem,
+  TextField,
+  Box,
+  Alert,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+} from '@mui/material';
+import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import { Trip, Vehicle, GpsPoint } from '@/types';
+import { useGeolocation } from '@/hooks/useGeolocation';
+import { useWakeLock } from '@/hooks/useWakeLock';
+import { useNoSleep } from '@/hooks/useNoSleep';
+import { usePlatform } from '@/hooks/usePlatform';
+import { useTrackingStore } from '@/stores/tracking';
+import { useSnackbarStore } from '@/stores/snackbar';
+import {
+  getVehicles,
+  getActiveTrip,
+  saveActiveTrip,
+  addTrip,
+  generateId,
+} from '@/lib/storage';
+import { calculateTotalDistance } from '@/lib/geo';
+import DriverModeCockpit from '@/components/trip/DriverModeCockpit';
+import StopTripSheet from '@/components/trip/StopTripSheet';
+import TrackingStatusIndicator from '@/components/trip/TrackingStatusIndicator';
 
-type View = "home" | "vehicles" | "export" | "settings" | "reports";
+export default function HomePage() {
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [selectedVehicleId, setSelectedVehicleId] = useState('');
+  const [activeTrip, setActiveTrip] = useState<Trip | null>(null);
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const [showStopSheet, setShowStopSheet] = useState(false);
+  const [showIOSChecklist, setShowIOSChecklist] = useState(false);
 
-function AppContent() {
-  const [currentView, setCurrentView] = useState<View>("home");
-  const [refreshKey, setRefreshKey] = useState(0);
-  const [showManualForm, setShowManualForm] = useState(false);
-  const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
-  const [bulkEntryMode, setBulkEntryMode] = useState(false);
-  const [bulkEntryCount, setBulkEntryCount] = useState(0);
-  const [lastSavedTrip, setLastSavedTrip] = useState<Trip | null>(null);
-  
-  const { staleTrip, showDialog: showStaleDialog, handleDiscard, handleKeep } = useStaleTrip();
-  const { conflictDetected, dismissConflict } = useMultiTabDetection();
-  const { theme, toggleTheme } = useTheme();
-  const { highContrast, toggleHighContrast } = useHighContrast();
-  const { showPrompt: showPWAPrompt, handleInstall, dismissPrompt } = usePWAInstall();
+  const { isIOS, isMobile } = usePlatform();
+  const { setTracking } = useTrackingStore();
+  const { showSnackbar } = useSnackbarStore();
 
-  const handleTripComplete = useCallback(() => {
-    setRefreshKey((k) => k + 1);
-  }, []);
+  const {
+    currentPosition,
+    gpsPoints,
+    isTracking,
+    error: geoError,
+    isSupported: geoSupported,
+    startTracking,
+    stopTracking,
+    clearPoints,
+  } = useGeolocation({ trackingInterval: 3000 });
 
-  const handleEditTrip = useCallback((trip: Trip) => {
-    setEditingTrip(trip);
-    setShowManualForm(true);
-  }, []);
+  const {
+    isSupported: wakeLockSupported,
+    isActive: wakeLockActive,
+    request: requestWakeLock,
+    release: releaseWakeLock,
+  } = useWakeLock();
 
-  const handleRepeatTrip = useCallback((trip: Trip) => {
-    const now = new Date();
-    const repeatTrip: Trip = {
-      ...trip,
-      id: '',
-      startTime: now.getTime(),
-      endTime: null,
-      createdAt: now.getTime(),
-      updatedAt: now.getTime(),
-    };
-    setEditingTrip(repeatTrip);
-    setShowManualForm(true);
-  }, []);
+  const {
+    isEnabled: noSleepEnabled,
+    enable: enableNoSleep,
+    disable: disableNoSleep,
+  } = useNoSleep();
 
-  const handleSaveTrip = useCallback((savedTrip?: Trip) => {
-    if (bulkEntryMode && savedTrip) {
-      setBulkEntryCount((c) => c + 1);
-      setLastSavedTrip(savedTrip);
-      setEditingTrip(null);
-      setRefreshKey((k) => k + 1);
-    } else {
-      setShowManualForm(false);
-      setEditingTrip(null);
-      setBulkEntryMode(false);
-      setBulkEntryCount(0);
-      setLastSavedTrip(null);
-      setRefreshKey((k) => k + 1);
-    }
-  }, [bulkEntryMode]);
-
-  const handleCloseForm = useCallback(() => {
-    if (bulkEntryMode) {
-      if (confirm('Exit bulk mode? Current unsaved trip will be lost.')) {
-        setShowManualForm(false);
-        setEditingTrip(null);
-        setBulkEntryMode(false);
-        setBulkEntryCount(0);
-        setLastSavedTrip(null);
-      }
-    } else {
-      setShowManualForm(false);
-      setEditingTrip(null);
-    }
-  }, [bulkEntryMode]);
-
-  const handleStartBulkEntry = useCallback(() => {
-    setBulkEntryMode(true);
-    setBulkEntryCount(0);
-    setLastSavedTrip(null);
-    setShowManualForm(true);
-  }, []);
-
-  return (
-    <div className="min-h-screen bg-slate-900">
-      {/* Header */}
-      <header className="sticky top-0 z-40 bg-slate-900/95 backdrop-blur border-b border-slate-800">
-        <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
-          <h1 className="text-xl font-bold text-white">RVA Miles</h1>
-          <nav className="flex items-center gap-1">
-            <button
-              onClick={() => setCurrentView("home")}
-              className={`p-2 rounded-lg transition-colors ${
-                currentView === "home"
-                  ? "bg-fuchsia-500 text-white"
-                  : "text-slate-400 hover:text-white"
-              }`}
-              title="Home"
-            >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
-                />
-              </svg>
-            </button>
-            <button
-              onClick={() => setCurrentView("vehicles")}
-              className={`p-2 rounded-lg transition-colors ${
-                currentView === "vehicles"
-                  ? "bg-fuchsia-500 text-white"
-                  : "text-slate-400 hover:text-white"
-              }`}
-              title="Vehicles"
-            >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z"
-                />
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0"
-                />
-              </svg>
-            </button>
-            <button
-              onClick={() => setCurrentView("export")}
-              className={`p-2 rounded-lg transition-colors ${
-                currentView === "export"
-                  ? "bg-fuchsia-500 text-white"
-                  : "text-slate-400 hover:text-white"
-              }`}
-              title="Export"
-            >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                />
-              </svg>
-            </button>
-            <button
-              onClick={() => setCurrentView("reports")}
-              className={`p-2 rounded-lg transition-colors ${
-                currentView === "reports"
-                  ? "bg-fuchsia-500 text-white"
-                  : "text-slate-400 hover:text-white"
-              }`}
-              title="Reports"
-            >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-                />
-              </svg>
-            </button>
-            <button
-              onClick={() => setCurrentView("settings")}
-              className={`p-2 rounded-lg transition-colors ${
-                currentView === "settings"
-                  ? "bg-fuchsia-500 text-white"
-                  : "text-slate-400 hover:text-white"
-              }`}
-              title="Settings"
-            >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-                />
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                />
-              </svg>
-            </button>
-          </nav>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="max-w-lg mx-auto px-4 py-6 pb-24">
-        {currentView === "home" && (
-          <div className="space-y-6">
-            <TripTracker onTripComplete={handleTripComplete} />
-
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-white">Trip History</h2>
-              <div className="flex gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleStartBulkEntry}
-                >
-                  Bulk Entry
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowManualForm(true)}
-                >
-                  + Add Manual
-                </Button>
-              </div>
-            </div>
-
-            <TripHistory
-              refreshKey={refreshKey}
-              onEditTrip={handleEditTrip}
-              onRepeatTrip={handleRepeatTrip}
-            />
-          </div>
-        )}
-
-        {currentView === "vehicles" && (
-          <VehicleManager onClose={() => setCurrentView("home")} />
-        )}
-
-        {currentView === "export" && (
-          <ExportView onBack={() => setCurrentView("home")} />
-        )}
-
-        {currentView === "settings" && (
-          <SettingsView
-            onBack={() => setCurrentView("home")}
-            onDataChange={() => setRefreshKey((k) => k + 1)}
-            theme={theme}
-            onToggleTheme={toggleTheme}
-            highContrast={highContrast}
-            onToggleHighContrast={toggleHighContrast}
-          />
-        )}
-
-        {currentView === "reports" && (
-          <ReportsView onBack={() => setCurrentView("home")} />
-        )}
-      </main>
-
-      {/* Stale Trip Dialog */}
-      {showStaleDialog && staleTrip && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <Card className="w-full max-w-md">
-            <h3 className="text-xl font-semibold text-white mb-4">Stale Trip Detected</h3>
-            <p className="text-slate-300 mb-4">
-              Found an active trip from{" "}
-              {new Date(staleTrip.startTime).toLocaleDateString()} at{" "}
-              {new Date(staleTrip.startTime).toLocaleTimeString()}.
-            </p>
-            <p className="text-slate-400 text-sm mb-6">
-              This trip has been running for over 24 hours. Would you like to discard it?
-            </p>
-            <div className="flex gap-3">
-              <Button variant="secondary" className="flex-1" onClick={handleKeep}>
-                Keep Trip
-              </Button>
-              <Button variant="danger" className="flex-1" onClick={handleDiscard}>
-                Discard
-              </Button>
-            </div>
-          </Card>
-        </div>
-      )}
-
-      {/* Multi-Tab Conflict Warning */}
-      {conflictDetected && (
-        <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 bg-yellow-600 text-white px-4 py-3 rounded-lg shadow-lg max-w-md">
-          <div className="flex items-start gap-3">
-            <svg className="w-6 h-6 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-            <div className="flex-1">
-              <p className="font-medium">Trip tracking in another tab</p>
-              <p className="text-sm mt-1">A trip is being tracked in another browser tab. This may cause data conflicts.</p>
-            </div>
-            <button onClick={dismissConflict} className="text-white hover:text-yellow-200">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* PWA Install Prompt */}
-      {showPWAPrompt && (
-        <div className="fixed bottom-20 left-4 right-4 z-50 max-w-md mx-auto">
-          <Card className="bg-fuchsia-600 border-fuchsia-500">
-            <div className="flex items-start gap-3">
-              <svg className="w-8 h-8 text-white flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
-              </svg>
-              <div className="flex-1">
-                <h4 className="font-semibold text-white mb-1">Install RVA Miles</h4>
-                <p className="text-sm text-fuchsia-100 mb-3">
-                  Install the app for offline access, faster loading, and a better experience.
-                </p>
-                <div className="flex gap-2">
-                  <Button variant="secondary" size="sm" onClick={dismissPrompt}>
-                    Not Now
-                  </Button>
-                  <Button variant="primary" size="sm" onClick={handleInstall}>
-                    Install
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </Card>
-        </div>
-      )}
-
-      {/* Manual Trip Form Modal */}
-      {showManualForm && (
-        <>
-          {bulkEntryMode && bulkEntryCount > 0 && (
-            <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg">
-              <p className="text-sm font-medium">Bulk Entry: Trip {bulkEntryCount} saved</p>
-              {lastSavedTrip && (
-                <p className="text-xs mt-1">
-                  Last: {lastSavedTrip.startAddress || 'Location'} → {lastSavedTrip.endAddress || 'Location'}, {lastSavedTrip.distanceMiles.toFixed(1)} mi
-                </p>
-              )}
-            </div>
-          )}
-          <ManualTripForm
-            trip={editingTrip}
-            onClose={handleCloseForm}
-            onSave={handleSaveTrip}
-            bulkMode={bulkEntryMode}
-          />
-        </>
-      )}
-    </div>
-  );
-}
-
-// Main export with PIN gate wrapper
-export default function Home() {
-  return (
-    <PinGate>
-      <AppContent />
-    </PinGate>
-  );
-}
-
-// Export View Component
-function ExportView({ onBack }: { onBack: () => void }) {
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [trips, setTrips] = useState<Trip[]>([]);
-  const [vehicles, setVehicles] = useState<{ id: string; name: string }[]>([]);
-  const [format, setFormat] = useState<'csv' | 'pdf' | 'excel'>('csv');
-  const [categoryFilter, setCategoryFilter] = useState('');
-  const [includeMaps, setIncludeMaps] = useState(true);
-  const [maxTripsWithMaps, setMaxTripsWithMaps] = useState('50');
-  const [isExporting, setIsExporting] = useState(false);
-  const [exportProgress, setExportProgress] = useState({ current: 0, total: 0 });
-  const settings = getSettings();
-  const categories = getTripCategories();
+  const screenKeptAwake = wakeLockActive || noSleepEnabled;
 
   useEffect(() => {
-    setTrips(getTripsFromStorage());
-    setVehicles(getVehiclesFromStorage());
-  }, []);
-
-  const handleExport = async () => {
-    let filteredTrips = trips;
-    
-    if (startDate) {
-      const start = new Date(startDate).getTime();
-      filteredTrips = filteredTrips.filter((t) => t.startTime >= start);
-    }
-    if (endDate) {
-      const end = new Date(endDate).setHours(23, 59, 59, 999);
-      filteredTrips = filteredTrips.filter((t) => t.startTime <= end);
-    }
-    if (categoryFilter) {
-      filteredTrips = filteredTrips.filter((t) => t.category === categoryFilter);
+    const loadedVehicles = getVehicles();
+    setVehicles(loadedVehicles);
+    const defaultVehicle = loadedVehicles.find((v) => v.isDefault);
+    if (defaultVehicle) {
+      setSelectedVehicleId(defaultVehicle.id);
+    } else if (loadedVehicles.length > 0) {
+      setSelectedVehicleId(loadedVehicles[0].id);
     }
 
-    if (filteredTrips.length === 0) {
-      alert("No trips found for the selected filters");
-      return;
+    const savedActiveTrip = getActiveTrip();
+    if (savedActiveTrip) {
+      setActiveTrip(savedActiveTrip);
+      setTracking(true);
     }
-
-    setIsExporting(true);
-    setExportProgress({ current: 0, total: filteredTrips.length });
-
-    try {
-      const { generateCSV, generatePDF, generateExcel } = await import('@/lib/export');
-      
-      if (format === 'csv') {
-        const csvContent = generateCSV(filteredTrips, settings);
-        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-        downloadBlob(blob, `mileage-report-${new Date().toISOString().split("T")[0]}.csv`);
-      } else if (format === 'pdf') {
-        const maxTrips = parseInt(maxTripsWithMaps) || 50;
-        const pdfBlob = await generatePDF(filteredTrips, settings, {
-          includeMaps,
-          maxTrips,
-          onProgress: (current, total) => setExportProgress({ current, total }),
-        });
-        downloadBlob(pdfBlob, `mileage-report-${new Date().toISOString().split("T")[0]}.pdf`);
-      } else if (format === 'excel') {
-        const excelBuffer = generateExcel(filteredTrips, settings);
-        const blob = new Blob([excelBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-        downloadBlob(blob, `mileage-report-${new Date().toISOString().split("T")[0]}.xlsx`);
-      }
-    } catch (error) {
-      alert(`Export failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setIsExporting(false);
-      setExportProgress({ current: 0, total: 0 });
-    }
-  };
-
-  const downloadBlob = (blob: Blob, filename: string) => {
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
-
-  let filteredTrips = trips;
-  if (startDate) {
-    const start = new Date(startDate).getTime();
-    filteredTrips = filteredTrips.filter((t) => t.startTime >= start);
-  }
-  if (endDate) {
-    const end = new Date(endDate).setHours(23, 59, 59, 999);
-    filteredTrips = filteredTrips.filter((t) => t.startTime <= end);
-  }
-  if (categoryFilter) {
-    filteredTrips = filteredTrips.filter((t) => t.category === categoryFilter);
-  }
-
-  const totalMiles = filteredTrips.reduce((sum, t) => sum + t.distanceMiles, 0);
-  const totalReimbursement = totalMiles * settings.irsRate;
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-white">Export Trips</h2>
-        <button
-          onClick={onBack}
-          className="text-slate-400 hover:text-white"
-        >
-          <svg
-            className="w-6 h-6"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M6 18L18 6M6 6l12 12"
-            />
-          </svg>
-        </button>
-      </div>
-
-      <Card>
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm text-slate-400 mb-1">Format</label>
-            <select
-              value={format}
-              onChange={(e) => setFormat(e.target.value as 'csv' | 'pdf' | 'excel')}
-              className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-xl text-white"
-            >
-              <option value="csv">CSV</option>
-              <option value="pdf">PDF</option>
-              <option value="excel">Excel</option>
-            </select>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm text-slate-400 mb-1">Start Date</label>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-xl text-white"
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-slate-400 mb-1">End Date</label>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-xl text-white"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm text-slate-400 mb-1">Category Filter</label>
-            <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-xl text-white"
-            >
-              <option value="">All Categories</option>
-              {categories.map((cat: { id: string; name: string }) => (
-                <option key={cat.id} value={cat.name}>{cat.name}</option>
-              ))}
-            </select>
-          </div>
-
-          {format === 'pdf' && (
-            <>
-              <label className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  checked={includeMaps}
-                  onChange={(e) => setIncludeMaps(e.target.checked)}
-                  className="w-4 h-4 bg-slate-800 border-slate-700 rounded"
-                />
-                <span className="text-sm text-slate-200">Include maps in PDF</span>
-              </label>
-              {includeMaps && (
-                <div>
-                  <label className="block text-sm text-slate-400 mb-1">
-                    Max trips with maps (1-100)
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="100"
-                    value={maxTripsWithMaps}
-                    onChange={(e) => setMaxTripsWithMaps(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-xl text-white"
-                  />
-                  <p className="text-xs text-slate-500 mt-1">
-                    Large exports may take several minutes
-                  </p>
-                </div>
-              )}
-            </>
-          )}
-
-          <div className="pt-4 border-t border-slate-700">
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-slate-400">Trips:</span>
-              <span className="text-white font-medium">{filteredTrips.length}</span>
-            </div>
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-slate-400">Total miles:</span>
-              <span className="text-white font-medium">{totalMiles.toFixed(1)} mi</span>
-            </div>
-            {settings.showDollarAmounts && (
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-slate-400">Total reimbursement:</span>
-                <span className="text-green-400 font-medium text-lg">
-                  ${totalReimbursement.toFixed(2)}
-                </span>
-              </div>
-            )}
-          </div>
-
-          {isExporting && exportProgress.total > 0 && (
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-400">Generating {format.toUpperCase()}...</span>
-                <span className="text-white">{exportProgress.current}/{exportProgress.total}</span>
-              </div>
-              <div className="w-full bg-slate-700 rounded-full h-2">
-                <div
-                  className="bg-fuchsia-500 h-2 rounded-full transition-all"
-                  style={{ width: `${(exportProgress.current / exportProgress.total) * 100}%` }}
-                />
-              </div>
-            </div>
-          )}
-
-          <Button
-            className="w-full"
-            onClick={handleExport}
-            disabled={filteredTrips.length === 0 || isExporting}
-            isLoading={isExporting}
-          >
-            {isExporting ? 'Exporting...' : `Export ${format.toUpperCase()}`}
-          </Button>
-        </div>
-      </Card>
-
-      <p className="text-sm text-slate-500 text-center">
-        CSV files can be opened in Excel, Google Sheets, or any spreadsheet app.
-      </p>
-    </div>
-  );
-}
-
-// Settings View Component
-function SettingsView({
-  onBack,
-  onDataChange,
-  theme,
-  onToggleTheme,
-  highContrast,
-  onToggleHighContrast,
-}: {
-  onBack: () => void;
-  onDataChange: () => void;
-  theme: string;
-  onToggleTheme: () => void;
-  highContrast: boolean;
-  onToggleHighContrast: () => void;
-}) {
-  const [summary, setSummary] = useState({ totalTrips: 0, totalMiles: 0, dateRange: "No trips" });
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
-  const [settings, setSettings] = useState(getSettings());
-  const [irsRate, setIrsRate] = useState(settings.irsRate.toString());
-  const [showDollarAmounts, setShowDollarAmounts] = useState(settings.showDollarAmounts);
-  const [apiQuota, setApiQuota] = useState(checkApiQuota());
-  const [storageInfo, setStorageInfo] = useState(checkStorageLimit());
+  }, [setTracking]);
 
   useEffect(() => {
-    setSummary(getTestDataSummary());
-    setApiQuota(checkApiQuota());
-    setStorageInfo(checkStorageLimit());
-  }, []);
+    if (!activeTrip) return;
+    const interval = setInterval(() => {
+      setElapsedTime(Date.now() - activeTrip.startTime);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [activeTrip]);
 
-  const toggleSection = (section: string) => {
-    const newExpanded = new Set(expandedSections);
-    if (newExpanded.has(section)) {
-      newExpanded.delete(section);
-    } else {
-      newExpanded.add(section);
-    }
-    setExpandedSections(newExpanded);
-  };
-
-  const handleSaveIrsRate = () => {
-    const rate = parseFloat(irsRate);
-    if (isNaN(rate) || rate < 0.01 || rate > 2.00) {
-      alert("Rate must be between $0.01 and $2.00 per mile");
-      return;
-    }
-    const newSettings = { ...settings, irsRate: rate, showDollarAmounts };
-    saveSettings(newSettings);
-    setSettings(newSettings);
-    alert("Settings saved!");
-  };
-
-  const handleGenerateTestData = async () => {
-    setIsGenerating(true);
-    try {
-      const count = addTestData(4); // 4 weeks of data
-      setSummary(getTestDataSummary());
-      onDataChange();
-      alert(`Generated ${count} test trips!`);
-    } catch (error) {
-      alert(error instanceof Error ? error.message : "Failed to generate test data");
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  const handleClearTrips = () => {
-    if (confirm("This will delete all trip data (but keep your PIN and vehicles). Continue?")) {
-      clearAllData();
-      setSummary(getTestDataSummary());
-      onDataChange();
-    }
-  };
-
-  const handleResetAll = () => {
-    if (confirm("This will delete ALL data including your PIN. You will need to set up a new PIN. Continue?")) {
-      localStorage.clear();
-      window.location.reload();
-    }
-  };
-
-  const handleChangePIN = () => {
-    if (confirm("This will log you out and require you to set a new PIN. Continue?")) {
-      localStorage.removeItem("rva-miles-pin-hash");
-      localStorage.removeItem("rva-miles-pin-verified");
-      window.location.reload();
-    }
-  };
-
-  const handleBackupData = () => {
-    const data = {
-      trips: localStorage.getItem("rva-miles-trips"),
-      vehicles: localStorage.getItem("rva-miles-vehicles"),
-      settings: localStorage.getItem("rva-miles-settings"),
-      savedPlaces: localStorage.getItem("rva-miles-saved-places"),
-      templates: localStorage.getItem("rva-miles-trip-templates"),
-      categories: localStorage.getItem("rva-miles-trip-categories"),
-      exportDate: new Date().toISOString(),
-    };
-
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `rva-miles-backup-${new Date().toISOString().split("T")[0]}.json`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
-
-  const handleRestoreData = () => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = ".json";
-    input.onchange = (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file) return;
-
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        try {
-          const data = JSON.parse(event.target?.result as string);
-          if (confirm("This will overwrite all current data. Continue?")) {
-            if (data.trips) localStorage.setItem("rva-miles-trips", data.trips);
-            if (data.vehicles) localStorage.setItem("rva-miles-vehicles", data.vehicles);
-            if (data.settings) localStorage.setItem("rva-miles-settings", data.settings);
-            if (data.savedPlaces) localStorage.setItem("rva-miles-saved-places", data.savedPlaces);
-            if (data.templates) localStorage.setItem("rva-miles-trip-templates", data.templates);
-            if (data.categories) localStorage.setItem("rva-miles-trip-categories", data.categories);
-            alert("Data restored successfully!");
-            window.location.reload();
-          }
-        } catch (error) {
-          alert("Failed to restore data. Invalid backup file.");
-        }
+  useEffect(() => {
+    if (activeTrip && isTracking) {
+      const updatedTrip: Trip = {
+        ...activeTrip,
+        gpsPoints: gpsPoints,
+        distanceMiles: calculateTotalDistance(gpsPoints),
+        endLocation: currentPosition,
+        updatedAt: Date.now(),
       };
-      reader.readAsText(file);
-    };
-    input.click();
-  };
+      saveActiveTrip(updatedTrip);
+      setActiveTrip(updatedTrip);
+    }
+  }, [gpsPoints, currentPosition]);
+
+  const startTripTracking = useCallback(async () => {
+    if (wakeLockSupported) {
+      await requestWakeLock();
+    }
+    await enableNoSleep();
+    clearPoints();
+    startTracking();
+    setTracking(true);
+
+    setTimeout(() => {
+      const startLocation: GpsPoint = currentPosition || {
+        lat: 0,
+        lng: 0,
+        timestamp: Date.now(),
+      };
+
+      const newTrip: Trip = {
+        id: generateId(),
+        vehicleId: selectedVehicleId,
+        startTime: Date.now(),
+        endTime: null,
+        startLocation,
+        endLocation: null,
+        gpsPoints: [],
+        distanceMiles: 0,
+        purpose: '',
+        status: 'in-progress',
+        isManualEntry: false,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      setActiveTrip(newTrip);
+      saveActiveTrip(newTrip);
+    }, 1000);
+  }, [
+    selectedVehicleId,
+    wakeLockSupported,
+    requestWakeLock,
+    enableNoSleep,
+    clearPoints,
+    startTracking,
+    currentPosition,
+    setTracking,
+  ]);
+
+  const handleStartTrip = useCallback(async () => {
+    if (!selectedVehicleId) {
+      showSnackbar({ message: 'Please select a vehicle first', severity: 'warning' });
+      return;
+    }
+    if (!geoSupported) {
+      showSnackbar({ message: 'Geolocation is not supported on this device', severity: 'error' });
+      return;
+    }
+    if (isIOS && isMobile) {
+      setShowIOSChecklist(true);
+      return;
+    }
+    await startTripTracking();
+  }, [selectedVehicleId, geoSupported, isIOS, isMobile, startTripTracking, showSnackbar]);
+
+  const handleIOSChecklistConfirm = useCallback(async () => {
+    setShowIOSChecklist(false);
+    await startTripTracking();
+  }, [startTripTracking]);
+
+  const handleStopTrip = useCallback(() => {
+    setShowStopSheet(true);
+  }, []);
+
+  const handleSaveTrip = useCallback(
+    (adjustedDistance: number, purpose: string) => {
+      if (!activeTrip) return;
+
+      const finalPoints = stopTracking();
+      releaseWakeLock();
+      disableNoSleep();
+      setTracking(false);
+
+      const completedTrip: Trip = {
+        ...activeTrip,
+        endTime: Date.now(),
+        endLocation: currentPosition || finalPoints[finalPoints.length - 1] || null,
+        gpsPoints: finalPoints,
+        distanceMiles: adjustedDistance,
+        purpose,
+        status: 'completed',
+        updatedAt: Date.now(),
+      };
+
+      addTrip(completedTrip);
+      saveActiveTrip(null);
+      setActiveTrip(null);
+      setShowStopSheet(false);
+      setElapsedTime(0);
+      showSnackbar({ message: 'Trip saved!', severity: 'success' });
+    },
+    [activeTrip, stopTracking, releaseWakeLock, disableNoSleep, currentPosition, setTracking, showSnackbar]
+  );
+
+  const handleDiscardTrip = useCallback(() => {
+    stopTracking();
+    releaseWakeLock();
+    disableNoSleep();
+    setTracking(false);
+    saveActiveTrip(null);
+    setActiveTrip(null);
+    setShowStopSheet(false);
+    setElapsedTime(0);
+    showSnackbar({ message: 'Trip discarded', severity: 'info' });
+  }, [stopTracking, releaseWakeLock, disableNoSleep, setTracking, showSnackbar]);
+
+  const currentDistance = calculateTotalDistance(gpsPoints);
+  const selectedVehicle = vehicles.find((v) => v.id === selectedVehicleId);
+
+  if (activeTrip) {
+    return (
+      <Container maxWidth="sm" sx={{ py: 2 }}>
+        {isIOS && !screenKeptAwake && (
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            <Typography variant="body2" fontWeight={500}>
+              Keep your screen on
+            </Typography>
+            <Typography variant="caption">
+              iOS may pause tracking if the screen locks. Keep the app visible.
+            </Typography>
+          </Alert>
+        )}
+
+        {geoError && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {geoError}
+          </Alert>
+        )}
+
+        <DriverModeCockpit
+          activeTrip={activeTrip}
+          elapsedTime={elapsedTime}
+          distance={currentDistance}
+          gpsPointCount={gpsPoints.length}
+          accuracy={currentPosition?.accuracy}
+          vehicleName={selectedVehicle?.name}
+          onStop={handleStopTrip}
+        />
+
+        <StopTripSheet
+          open={showStopSheet}
+          onClose={() => setShowStopSheet(false)}
+          distance={currentDistance}
+          onSave={handleSaveTrip}
+          onDiscard={handleDiscardTrip}
+        />
+      </Container>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-white">Settings</h2>
-        <button
-          onClick={onBack}
-          className="text-slate-400 hover:text-white"
-        >
-          <svg
-            className="w-6 h-6"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M6 18L18 6M6 6l12 12"
-            />
-          </svg>
-        </button>
-      </div>
-
-      {/* IRS Mileage Rate */}
+    <Container maxWidth="sm" sx={{ py: 3 }}>
       <Card>
-        <h3 className="font-medium text-white mb-3">IRS Mileage Rate</h3>
-        <div className="space-y-4">
-          <div>
-            <Input
-              label="Rate ($/mile)"
-              type="number"
-              step="0.01"
-              min="0.01"
-              max="2.00"
-              value={irsRate}
-              onChange={(e) => setIrsRate(e.target.value)}
-            />
-            <p className="text-xs text-slate-500 mt-1">
-              Current IRS standard rate is $0.67/mile (2024)
-            </p>
-          </div>
-          <label className="flex items-center space-x-2">
-            <input
-              type="checkbox"
-              checked={showDollarAmounts}
-              onChange={(e) => setShowDollarAmounts(e.target.checked)}
-              className="w-4 h-4 bg-slate-800 border-slate-700 rounded"
-            />
-            <span className="text-sm text-slate-200">Show dollar amounts in app</span>
-          </label>
-          <Button
-            variant="primary"
-            className="w-full"
-            onClick={handleSaveIrsRate}
-          >
-            Save Rate Settings
-          </Button>
-          <p className="text-xs text-yellow-500">
-            ⚠️ IRS rate changes annually. Verify current rate at irs.gov
-          </p>
-        </div>
-      </Card>
+        <CardContent sx={{ textAlign: 'center', py: 4 }}>
+          <TrackingStatusIndicator status="OFF" />
 
-      {/* API Usage */}
-      <Card>
-        <h3 className="font-medium text-white mb-3">Google Maps API Usage</h3>
-        <div className="space-y-2 text-sm">
-          <div className="flex justify-between">
-            <span className="text-slate-400">This month:</span>
-            <span className="text-white">{apiQuota.used} / {apiQuota.limit.toLocaleString()} calls</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-slate-400">Usage:</span>
-            <span className={apiQuota.percentage > 80 ? "text-yellow-400" : "text-white"}>
-              {apiQuota.percentage.toFixed(1)}%
-            </span>
-          </div>
-          {apiQuota.percentage > 80 && (
-            <p className="text-yellow-500 text-xs mt-2">
-              ⚠️ Approaching API limit. Maps may be disabled soon.
-            </p>
-          )}
-          {apiQuota.exceeded && (
-            <p className="text-red-500 text-xs mt-2">
-              ❌ API limit reached. Autocomplete and maps disabled until next month.
-            </p>
-          )}
-        </div>
-      </Card>
+          <Typography variant="h5" fontWeight={600} sx={{ mt: 4, mb: 3 }}>
+            Start a Trip
+          </Typography>
 
-      {/* Storage */}
-      <Card>
-        <h3 className="font-medium text-white mb-3">Storage Usage</h3>
-        <div className="space-y-2 text-sm">
-          <div className="flex justify-between">
-            <span className="text-slate-400">Used:</span>
-            <span className="text-white">{storageInfo.size.toFixed(2)} MB / 5 MB</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-slate-400">Percentage:</span>
-            <span className={storageInfo.warning ? "text-yellow-400" : "text-white"}>
-              {storageInfo.percentage.toFixed(1)}%
-            </span>
-          </div>
-          {storageInfo.warning && (
-            <p className="text-yellow-500 text-xs mt-2">
-              ⚠️ Storage approaching limit. Consider exporting and archiving old trips.
-            </p>
-          )}
-        </div>
-      </Card>
-
-      {/* Data Summary */}
-      <Card>
-        <h3 className="font-medium text-white mb-3">Data Summary</h3>
-        <div className="space-y-2 text-sm">
-          <div className="flex justify-between">
-            <span className="text-slate-400">Total trips:</span>
-            <span className="text-white">{summary.totalTrips}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-slate-400">Total miles:</span>
-            <span className="text-white">{summary.totalMiles} mi</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-slate-400">Date range:</span>
-            <span className="text-white">{summary.dateRange}</span>
-          </div>
-        </div>
-      </Card>
-
-      {/* Saved Places */}
-      <Card>
-        <button
-          onClick={() => toggleSection('places')}
-          className="w-full flex items-center justify-between text-left"
-        >
-          <h3 className="font-medium text-white">Saved Places</h3>
-          <svg
-            className={`w-5 h-5 text-slate-400 transition-transform ${expandedSections.has('places') ? 'rotate-180' : ''}`}
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
-        {expandedSections.has('places') && (
-          <div className="mt-4">
-            <SavedPlaceManager />
-          </div>
-        )}
-      </Card>
-
-      {/* Trip Templates */}
-      <Card>
-        <button
-          onClick={() => toggleSection('templates')}
-          className="w-full flex items-center justify-between text-left"
-        >
-          <h3 className="font-medium text-white">Trip Templates</h3>
-          <svg
-            className={`w-5 h-5 text-slate-400 transition-transform ${expandedSections.has('templates') ? 'rotate-180' : ''}`}
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
-        {expandedSections.has('templates') && (
-          <div className="mt-4">
-            <TripTemplateManager />
-          </div>
-        )}
-      </Card>
-
-      {/* Trip Categories */}
-      <Card>
-        <button
-          onClick={() => toggleSection('categories')}
-          className="w-full flex items-center justify-between text-left"
-        >
-          <h3 className="font-medium text-white">Trip Categories</h3>
-          <svg
-            className={`w-5 h-5 text-slate-400 transition-transform ${expandedSections.has('categories') ? 'rotate-180' : ''}`}
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
-        {expandedSections.has('categories') && (
-          <div className="mt-4">
-            <TripCategoryManager />
-          </div>
-        )}
-      </Card>
-
-      {/* Test Data */}
-      <Card>
-        <h3 className="font-medium text-white mb-3">Test Data</h3>
-        <p className="text-slate-400 text-sm mb-4">
-          Generate realistic sample trips around Richmond, VA to test export functionality.
-        </p>
-        <Button
-          variant="secondary"
-          className="w-full"
-          onClick={handleGenerateTestData}
-          isLoading={isGenerating}
-        >
-          Generate 4 Weeks of Test Data
-        </Button>
-      </Card>
-
-      {/* Appearance */}
-      <Card>
-        <h3 className="font-medium text-white mb-3">Appearance</h3>
-        <div className="space-y-3">
-          <label className="flex items-center justify-between">
-            <span className="text-slate-200">Theme</span>
-            <button
-              onClick={onToggleTheme}
-              className="px-4 py-2 bg-slate-700 rounded-lg text-white hover:bg-slate-600"
+          <Stack spacing={3}>
+            <TextField
+              select
+              label="Select Vehicle"
+              value={selectedVehicleId}
+              onChange={(e) => setSelectedVehicleId(e.target.value)}
+              fullWidth
             >
-              {theme === "dark" ? "🌙 Dark" : "☀️ Light"}
-            </button>
-          </label>
-          <label className="flex items-center justify-between">
-            <div>
-              <span className="text-slate-200">High Contrast Mode</span>
-              <p className="text-xs text-slate-500 mt-1">For driving in bright sunlight</p>
-            </div>
-            <input
-              type="checkbox"
-              checked={highContrast}
-              onChange={onToggleHighContrast}
-              className="w-4 h-4 bg-slate-800 border-slate-700 rounded"
-            />
-          </label>
-        </div>
+              {vehicles.map((v) => (
+                <MenuItem key={v.id} value={v.id}>
+                  {v.name}
+                </MenuItem>
+              ))}
+            </TextField>
+
+            {geoError && (
+              <Alert severity="error">{geoError}</Alert>
+            )}
+
+            {!geoSupported && (
+              <Alert severity="warning">
+                Geolocation is not supported. You can still add trips manually.
+              </Alert>
+            )}
+
+            <Button
+              variant="contained"
+              size="large"
+              startIcon={<PlayArrowIcon />}
+              onClick={handleStartTrip}
+              disabled={!selectedVehicleId || !geoSupported}
+              sx={{ minHeight: 60 }}
+            >
+              Start Trip
+            </Button>
+
+            {isIOS && isMobile && (
+              <Typography variant="caption" color="text.secondary">
+                You'll see a quick checklist before starting to ensure accurate tracking.
+              </Typography>
+            )}
+          </Stack>
+        </CardContent>
       </Card>
 
-      {/* Data Backup */}
-      <Card>
-        <h3 className="font-medium text-white mb-3">Data Backup</h3>
-        <div className="space-y-3">
-          <Button
-            variant="secondary"
-            className="w-full"
-            onClick={handleBackupData}
-          >
-            Export All Data (JSON)
+      <Dialog open={showIOSChecklist} onClose={() => setShowIOSChecklist(false)}>
+        <DialogTitle>Before You Start</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 2 }}>
+            iOS limits background GPS tracking. For best results:
+          </DialogContentText>
+          <Box component="ul" sx={{ pl: 2 }}>
+            <li>Plug in your phone</li>
+            <li>Keep screen visible</li>
+            <li>Optional: Set Auto-Lock to Never in Settings</li>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowIOSChecklist(false)}>Cancel</Button>
+          <Button onClick={handleIOSChecklistConfirm} variant="contained">
+            Start Trip
           </Button>
-          <Button
-            variant="secondary"
-            className="w-full"
-            onClick={handleRestoreData}
-          >
-            Import from Backup
-          </Button>
-          <p className="text-xs text-slate-500">
-            Backup your data regularly to prevent loss. Backups include all trips, vehicles, and settings.
-          </p>
-        </div>
-      </Card>
-
-      {/* Security */}
-      <Card>
-        <h3 className="font-medium text-white mb-3">Security</h3>
-        <Button
-          variant="secondary"
-          className="w-full"
-          onClick={handleChangePIN}
-        >
-          Change PIN
-        </Button>
-      </Card>
-
-      {/* Danger Zone */}
-      <Card className="border-red-900/50">
-        <h3 className="font-medium text-red-400 mb-3">Danger Zone</h3>
-        <div className="space-y-3">
-          <Button
-            variant="ghost"
-            className="w-full text-red-400 hover:bg-red-900/20"
-            onClick={handleClearTrips}
-          >
-            Clear All Trips
-          </Button>
-          <Button
-            variant="ghost"
-            className="w-full text-red-400 hover:bg-red-900/20"
-            onClick={handleResetAll}
-          >
-            Reset Everything
-          </Button>
-        </div>
-      </Card>
-
-      <p className="text-xs text-slate-500 text-center">
-        All data is stored locally on this device only.
-      </p>
-    </div>
+        </DialogActions>
+      </Dialog>
+    </Container>
   );
 }

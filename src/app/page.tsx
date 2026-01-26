@@ -16,8 +16,14 @@ import Input from "@/components/ui/Input";
 import { addTestData, clearAllData, getTestDataSummary } from "@/lib/testData";
 import { getSettings, saveSettings, checkStorageLimit, getTripCategories, getTrips as getTripsFromStorage, getVehicles as getVehiclesFromStorage } from "@/lib/storage";
 import { checkApiQuota } from "@/lib/googleMaps";
+import { useStaleTrip } from "@/hooks/useStaleTrip";
+import { useMultiTabDetection } from "@/hooks/useMultiTabDetection";
+import { useTheme } from "@/hooks/useTheme";
+import { useHighContrast } from "@/hooks/useHighContrast";
+import { usePWAInstall } from "@/hooks/usePWAInstall";
+import ReportsView from "@/components/reports/ReportsView";
 
-type View = "home" | "vehicles" | "export" | "settings";
+type View = "home" | "vehicles" | "export" | "settings" | "reports";
 
 function AppContent() {
   const [currentView, setCurrentView] = useState<View>("home");
@@ -27,6 +33,12 @@ function AppContent() {
   const [bulkEntryMode, setBulkEntryMode] = useState(false);
   const [bulkEntryCount, setBulkEntryCount] = useState(0);
   const [lastSavedTrip, setLastSavedTrip] = useState<Trip | null>(null);
+  
+  const { staleTrip, showDialog: showStaleDialog, handleDiscard, handleKeep } = useStaleTrip();
+  const { conflictDetected, dismissConflict } = useMultiTabDetection();
+  const { theme, toggleTheme } = useTheme();
+  const { highContrast, toggleHighContrast } = useHighContrast();
+  const { showPrompt: showPWAPrompt, handleInstall, dismissPrompt } = usePWAInstall();
 
   const handleTripComplete = useCallback(() => {
     setRefreshKey((k) => k + 1);
@@ -250,9 +262,89 @@ function AppContent() {
           <SettingsView
             onBack={() => setCurrentView("home")}
             onDataChange={() => setRefreshKey((k) => k + 1)}
+            theme={theme}
+            onToggleTheme={toggleTheme}
+            highContrast={highContrast}
+            onToggleHighContrast={toggleHighContrast}
           />
         )}
+
+        {currentView === "reports" && (
+          <ReportsView onBack={() => setCurrentView("home")} />
+        )}
       </main>
+
+      {/* Stale Trip Dialog */}
+      {showStaleDialog && staleTrip && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md">
+            <h3 className="text-xl font-semibold text-white mb-4">Stale Trip Detected</h3>
+            <p className="text-slate-300 mb-4">
+              Found an active trip from{" "}
+              {new Date(staleTrip.startTime).toLocaleDateString()} at{" "}
+              {new Date(staleTrip.startTime).toLocaleTimeString()}.
+            </p>
+            <p className="text-slate-400 text-sm mb-6">
+              This trip has been running for over 24 hours. Would you like to discard it?
+            </p>
+            <div className="flex gap-3">
+              <Button variant="secondary" className="flex-1" onClick={handleKeep}>
+                Keep Trip
+              </Button>
+              <Button variant="danger" className="flex-1" onClick={handleDiscard}>
+                Discard
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Multi-Tab Conflict Warning */}
+      {conflictDetected && (
+        <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 bg-yellow-600 text-white px-4 py-3 rounded-lg shadow-lg max-w-md">
+          <div className="flex items-start gap-3">
+            <svg className="w-6 h-6 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <div className="flex-1">
+              <p className="font-medium">Trip tracking in another tab</p>
+              <p className="text-sm mt-1">A trip is being tracked in another browser tab. This may cause data conflicts.</p>
+            </div>
+            <button onClick={dismissConflict} className="text-white hover:text-yellow-200">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* PWA Install Prompt */}
+      {showPWAPrompt && (
+        <div className="fixed bottom-20 left-4 right-4 z-50 max-w-md mx-auto">
+          <Card className="bg-fuchsia-600 border-fuchsia-500">
+            <div className="flex items-start gap-3">
+              <svg className="w-8 h-8 text-white flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+              </svg>
+              <div className="flex-1">
+                <h4 className="font-semibold text-white mb-1">Install RVA Miles</h4>
+                <p className="text-sm text-fuchsia-100 mb-3">
+                  Install the app for offline access, faster loading, and a better experience.
+                </p>
+                <div className="flex gap-2">
+                  <Button variant="secondary" size="sm" onClick={dismissPrompt}>
+                    Not Now
+                  </Button>
+                  <Button variant="primary" size="sm" onClick={handleInstall}>
+                    Install
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
 
       {/* Manual Trip Form Modal */}
       {showManualForm && (
@@ -548,9 +640,17 @@ function ExportView({ onBack }: { onBack: () => void }) {
 function SettingsView({
   onBack,
   onDataChange,
+  theme,
+  onToggleTheme,
+  highContrast,
+  onToggleHighContrast,
 }: {
   onBack: () => void;
   onDataChange: () => void;
+  theme: string;
+  onToggleTheme: () => void;
+  highContrast: boolean;
+  onToggleHighContrast: () => void;
 }) {
   const [summary, setSummary] = useState({ totalTrips: 0, totalMiles: 0, dateRange: "No trips" });
   const [isGenerating, setIsGenerating] = useState(false);
@@ -624,6 +724,59 @@ function SettingsView({
       localStorage.removeItem("rva-miles-pin-verified");
       window.location.reload();
     }
+  };
+
+  const handleBackupData = () => {
+    const data = {
+      trips: localStorage.getItem("rva-miles-trips"),
+      vehicles: localStorage.getItem("rva-miles-vehicles"),
+      settings: localStorage.getItem("rva-miles-settings"),
+      savedPlaces: localStorage.getItem("rva-miles-saved-places"),
+      templates: localStorage.getItem("rva-miles-trip-templates"),
+      categories: localStorage.getItem("rva-miles-trip-categories"),
+      exportDate: new Date().toISOString(),
+    };
+
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `rva-miles-backup-${new Date().toISOString().split("T")[0]}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleRestoreData = () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".json";
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const data = JSON.parse(event.target?.result as string);
+          if (confirm("This will overwrite all current data. Continue?")) {
+            if (data.trips) localStorage.setItem("rva-miles-trips", data.trips);
+            if (data.vehicles) localStorage.setItem("rva-miles-vehicles", data.vehicles);
+            if (data.settings) localStorage.setItem("rva-miles-settings", data.settings);
+            if (data.savedPlaces) localStorage.setItem("rva-miles-saved-places", data.savedPlaces);
+            if (data.templates) localStorage.setItem("rva-miles-trip-templates", data.templates);
+            if (data.categories) localStorage.setItem("rva-miles-trip-categories", data.categories);
+            alert("Data restored successfully!");
+            window.location.reload();
+          }
+        } catch (error) {
+          alert("Failed to restore data. Invalid backup file.");
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
   };
 
   return (
@@ -841,6 +994,58 @@ function SettingsView({
         >
           Generate 4 Weeks of Test Data
         </Button>
+      </Card>
+
+      {/* Appearance */}
+      <Card>
+        <h3 className="font-medium text-white mb-3">Appearance</h3>
+        <div className="space-y-3">
+          <label className="flex items-center justify-between">
+            <span className="text-slate-200">Theme</span>
+            <button
+              onClick={onToggleTheme}
+              className="px-4 py-2 bg-slate-700 rounded-lg text-white hover:bg-slate-600"
+            >
+              {theme === "dark" ? "🌙 Dark" : "☀️ Light"}
+            </button>
+          </label>
+          <label className="flex items-center justify-between">
+            <div>
+              <span className="text-slate-200">High Contrast Mode</span>
+              <p className="text-xs text-slate-500 mt-1">For driving in bright sunlight</p>
+            </div>
+            <input
+              type="checkbox"
+              checked={highContrast}
+              onChange={onToggleHighContrast}
+              className="w-4 h-4 bg-slate-800 border-slate-700 rounded"
+            />
+          </label>
+        </div>
+      </Card>
+
+      {/* Data Backup */}
+      <Card>
+        <h3 className="font-medium text-white mb-3">Data Backup</h3>
+        <div className="space-y-3">
+          <Button
+            variant="secondary"
+            className="w-full"
+            onClick={handleBackupData}
+          >
+            Export All Data (JSON)
+          </Button>
+          <Button
+            variant="secondary"
+            className="w-full"
+            onClick={handleRestoreData}
+          >
+            Import from Backup
+          </Button>
+          <p className="text-xs text-slate-500">
+            Backup your data regularly to prevent loss. Backups include all trips, vehicles, and settings.
+          </p>
+        </div>
       </Card>
 
       {/* Security */}

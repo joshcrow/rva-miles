@@ -49,3 +49,75 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Light Mode */
+.light-mode {
+  --background: #ffffff;
+  --foreground: #171717;
+  --gray-900: #f9fafb;
+  --gray-800: #f3f4f6;
+  --gray-700: #e5e7eb;
+  --gray-600: #d1d5db;
+  --gray-500: #9ca3af;
+}
+
+.light-mode body {
+  background: #ffffff;
+  color: #171717;
+}
+
+.light-mode .bg-slate-900 {
+  background-color: #ffffff !important;
+}
+
+.light-mode .bg-slate-800 {
+  background-color: #f3f4f6 !important;
+}
+
+.light-mode .bg-slate-700 {
+  background-color: #e5e7eb !important;
+}
+
+.light-mode .text-white {
+  color: #171717 !important;
+}
+
+.light-mode .text-slate-400 {
+  color: #6b7280 !important;
+}
+
+.light-mode .border-slate-800 {
+  border-color: #e5e7eb !important;
+}
+
+.light-mode .border-slate-700 {
+  border-color: #d1d5db !important;
+}
+
+/* High Contrast Mode */
+.high-contrast {
+  --background: #000000;
+  --foreground: #ffffff;
+}
+
+.high-contrast body {
+  background: #000000;
+  color: #ffffff;
+}
+
+.high-contrast .bg-slate-900,
+.high-contrast .bg-slate-800,
+.high-contrast .bg-slate-700 {
+  background-color: #000000 !important;
+}
+
+.high-contrast .text-slate-400,
+.high-contrast .text-slate-500 {
+  color: #ffffff !important;
+}
+
+.high-contrast .border-slate-800,
+.high-contrast .border-slate-700 {
+  border-color: #ffffff !important;
+  border-width: 2px !important;
+}

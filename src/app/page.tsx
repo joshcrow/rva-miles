@@ -34,6 +34,20 @@ function AppContent() {
     setShowManualForm(true);
   }, []);
 
+  const handleRepeatTrip = useCallback((trip: Trip) => {
+    const now = new Date();
+    const repeatTrip: Trip = {
+      ...trip,
+      id: '',
+      startTime: now.getTime(),
+      endTime: null,
+      createdAt: now.getTime(),
+      updatedAt: now.getTime(),
+    };
+    setEditingTrip(repeatTrip);
+    setShowManualForm(true);
+  }, []);
+
   const handleSaveTrip = useCallback(() => {
     setShowManualForm(false);
     setEditingTrip(null);
@@ -180,6 +194,7 @@ function AppContent() {
             <TripHistory
               refreshKey={refreshKey}
               onEditTrip={handleEditTrip}
+              onRepeatTrip={handleRepeatTrip}
             />
           </div>
         )}
@@ -227,15 +242,25 @@ function ExportView({ onBack }: { onBack: () => void }) {
   const [endDate, setEndDate] = useState("");
   const [trips, setTrips] = useState<Trip[]>([]);
   const [vehicles, setVehicles] = useState<{ id: string; name: string }[]>([]);
+  const [format, setFormat] = useState<'csv' | 'pdf' | 'excel'>('csv');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [includeMaps, setIncludeMaps] = useState(true);
+  const [maxTripsWithMaps, setMaxTripsWithMaps] = useState('50');
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState({ current: 0, total: 0 });
+  const settings = getSettings();
+  const categories = getTripCategories();
 
   useEffect(() => {
-    setTrips(JSON.parse(localStorage.getItem("rva-miles-trips") || "[]"));
-    setVehicles(JSON.parse(localStorage.getItem("rva-miles-vehicles") || "[]"));
+    import('@/lib/storage').then(({ getTrips, getVehicles }) => {
+      setTrips(getTrips());
+      setVehicles(getVehicles());
+    });
   }, []);
 
-  const handleExport = () => {
-    // Filter by date if specified
+  const handleExport = async () => {
     let filteredTrips = trips;
+    
     if (startDate) {
       const start = new Date(startDate).getTime();
       filteredTrips = filteredTrips.filter((t) => t.startTime >= start);
@@ -244,64 +269,57 @@ function ExportView({ onBack }: { onBack: () => void }) {
       const end = new Date(endDate).setHours(23, 59, 59, 999);
       filteredTrips = filteredTrips.filter((t) => t.startTime <= end);
     }
+    if (categoryFilter) {
+      filteredTrips = filteredTrips.filter((t) => t.category === categoryFilter);
+    }
 
     if (filteredTrips.length === 0) {
-      alert("No trips found for the selected date range");
+      alert("No trips found for the selected filters");
       return;
     }
 
-    // Create CSV content
-    const headers = [
-      "Date",
-      "Start Time",
-      "End Time",
-      "Vehicle",
-      "Distance (miles)",
-      "Purpose",
-      "Start Lat",
-      "Start Lng",
-      "End Lat",
-      "End Lng",
-    ];
+    setIsExporting(true);
+    setExportProgress({ current: 0, total: filteredTrips.length });
 
-    const getVehicleName = (id: string) => {
-      const v = vehicles.find((v) => v.id === id);
-      return v?.name || "Unknown";
-    };
+    try {
+      const { generateCSV, generatePDF, generateExcel } = await import('@/lib/export');
+      
+      if (format === 'csv') {
+        const csvContent = generateCSV(filteredTrips, settings);
+        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        downloadBlob(blob, `mileage-report-${new Date().toISOString().split("T")[0]}.csv`);
+      } else if (format === 'pdf') {
+        const maxTrips = parseInt(maxTripsWithMaps) || 50;
+        const pdfBlob = await generatePDF(filteredTrips, settings, {
+          includeMaps,
+          maxTrips,
+          onProgress: (current, total) => setExportProgress({ current, total }),
+        });
+        downloadBlob(pdfBlob, `mileage-report-${new Date().toISOString().split("T")[0]}.pdf`);
+      } else if (format === 'excel') {
+        const excelBuffer = generateExcel(filteredTrips, settings);
+        const blob = new Blob([excelBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+        downloadBlob(blob, `mileage-report-${new Date().toISOString().split("T")[0]}.xlsx`);
+      }
+    } catch (error) {
+      alert(`Export failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsExporting(false);
+      setExportProgress({ current: 0, total: 0 });
+    }
+  };
 
-    const rows = filteredTrips.map((trip) => [
-      new Date(trip.startTime).toLocaleDateString(),
-      new Date(trip.startTime).toLocaleTimeString(),
-      trip.endTime ? new Date(trip.endTime).toLocaleTimeString() : "",
-      getVehicleName(trip.vehicleId),
-      trip.distanceMiles.toFixed(2),
-      trip.purpose || "",
-      trip.startLocation.lat.toFixed(6),
-      trip.startLocation.lng.toFixed(6),
-      trip.endLocation?.lat.toFixed(6) || "",
-      trip.endLocation?.lng.toFixed(6) || "",
-    ]);
-
-    const csvContent = [
-      headers.join(","),
-      ...rows.map((row) =>
-        row.map((cell) => `"${cell}"`).join(",")
-      ),
-    ].join("\n");
-
-    // Download file
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const downloadBlob = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `mileage-report-${new Date().toISOString().split("T")[0]}.csv`;
+    link.download = filename;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
   };
 
-  // Filter trips for display
   let filteredTrips = trips;
   if (startDate) {
     const start = new Date(startDate).getTime();
@@ -311,8 +329,12 @@ function ExportView({ onBack }: { onBack: () => void }) {
     const end = new Date(endDate).setHours(23, 59, 59, 999);
     filteredTrips = filteredTrips.filter((t) => t.startTime <= end);
   }
+  if (categoryFilter) {
+    filteredTrips = filteredTrips.filter((t) => t.category === categoryFilter);
+  }
 
   const totalMiles = filteredTrips.reduce((sum, t) => sum + t.distanceMiles, 0);
+  const totalReimbursement = totalMiles * settings.irsRate;
 
   return (
     <div className="space-y-6">
@@ -340,11 +362,22 @@ function ExportView({ onBack }: { onBack: () => void }) {
 
       <Card>
         <div className="space-y-4">
+          <div>
+            <label className="block text-sm text-slate-400 mb-1">Format</label>
+            <select
+              value={format}
+              onChange={(e) => setFormat(e.target.value as 'csv' | 'pdf' | 'excel')}
+              className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-xl text-white"
+            >
+              <option value="csv">CSV</option>
+              <option value="pdf">PDF</option>
+              <option value="excel">Excel</option>
+            </select>
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm text-slate-400 mb-1">
-                Start Date
-              </label>
+              <label className="block text-sm text-slate-400 mb-1">Start Date</label>
               <input
                 type="date"
                 value={startDate}
@@ -353,9 +386,7 @@ function ExportView({ onBack }: { onBack: () => void }) {
               />
             </div>
             <div>
-              <label className="block text-sm text-slate-400 mb-1">
-                End Date
-              </label>
+              <label className="block text-sm text-slate-400 mb-1">End Date</label>
               <input
                 type="date"
                 value={endDate}
@@ -365,25 +396,93 @@ function ExportView({ onBack }: { onBack: () => void }) {
             </div>
           </div>
 
+          <div>
+            <label className="block text-sm text-slate-400 mb-1">Category Filter</label>
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-xl text-white"
+            >
+              <option value="">All Categories</option>
+              {categories.map((cat) => (
+                <option key={cat.id} value={cat.name}>{cat.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {format === 'pdf' && (
+            <>
+              <label className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={includeMaps}
+                  onChange={(e) => setIncludeMaps(e.target.checked)}
+                  className="w-4 h-4 bg-slate-800 border-slate-700 rounded"
+                />
+                <span className="text-sm text-slate-200">Include maps in PDF</span>
+              </label>
+              {includeMaps && (
+                <div>
+                  <label className="block text-sm text-slate-400 mb-1">
+                    Max trips with maps (1-100)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="100"
+                    value={maxTripsWithMaps}
+                    onChange={(e) => setMaxTripsWithMaps(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-xl text-white"
+                  />
+                  <p className="text-xs text-slate-500 mt-1">
+                    Large exports may take several minutes
+                  </p>
+                </div>
+              )}
+            </>
+          )}
+
           <div className="pt-4 border-t border-slate-700">
-            <div className="flex justify-between items-center mb-4">
-              <span className="text-slate-400">Trips in range:</span>
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-slate-400">Trips:</span>
               <span className="text-white font-medium">{filteredTrips.length}</span>
             </div>
-            <div className="flex justify-between items-center mb-4">
+            <div className="flex justify-between items-center mb-2">
               <span className="text-slate-400">Total miles:</span>
-              <span className="text-white font-medium text-xl">
-                {totalMiles.toFixed(1)} mi
-              </span>
+              <span className="text-white font-medium">{totalMiles.toFixed(1)} mi</span>
             </div>
+            {settings.showDollarAmounts && (
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-slate-400">Total reimbursement:</span>
+                <span className="text-green-400 font-medium text-lg">
+                  ${totalReimbursement.toFixed(2)}
+                </span>
+              </div>
+            )}
           </div>
+
+          {isExporting && exportProgress.total > 0 && (
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-400">Generating {format.toUpperCase()}...</span>
+                <span className="text-white">{exportProgress.current}/{exportProgress.total}</span>
+              </div>
+              <div className="w-full bg-slate-700 rounded-full h-2">
+                <div
+                  className="bg-fuchsia-500 h-2 rounded-full transition-all"
+                  style={{ width: `${(exportProgress.current / exportProgress.total) * 100}%` }}
+                />
+              </div>
+            </div>
+          )}
 
           <Button
             className="w-full"
             onClick={handleExport}
-            disabled={filteredTrips.length === 0}
+            disabled={filteredTrips.length === 0 || isExporting}
+            isLoading={isExporting}
           >
-            Download CSV
+            {isExporting ? 'Exporting...' : `Export ${format.toUpperCase()}`}
           </Button>
         </div>
       </Card>

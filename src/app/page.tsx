@@ -7,9 +7,15 @@ import TripTracker from "@/components/trip/TripTracker";
 import TripHistory from "@/components/trip/TripHistory";
 import ManualTripForm from "@/components/trip/ManualTripForm";
 import VehicleManager from "@/components/vehicle/VehicleManager";
+import SavedPlaceManager from "@/components/place/SavedPlaceManager";
+import TripTemplateManager from "@/components/trip/TripTemplateManager";
+import TripCategoryManager from "@/components/trip/TripCategoryManager";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
+import Input from "@/components/ui/Input";
 import { addTestData, clearAllData, getTestDataSummary } from "@/lib/testData";
+import { getSettings, saveSettings, checkStorageLimit } from "@/lib/storage";
+import { checkApiQuota } from "@/lib/googleMaps";
 
 type View = "home" | "vehicles" | "export" | "settings";
 
@@ -399,10 +405,40 @@ function SettingsView({
 }) {
   const [summary, setSummary] = useState({ totalTrips: 0, totalMiles: 0, dateRange: "No trips" });
   const [isGenerating, setIsGenerating] = useState(false);
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
+  const [settings, setSettings] = useState(getSettings());
+  const [irsRate, setIrsRate] = useState(settings.irsRate.toString());
+  const [showDollarAmounts, setShowDollarAmounts] = useState(settings.showDollarAmounts);
+  const [apiQuota, setApiQuota] = useState(checkApiQuota());
+  const [storageInfo, setStorageInfo] = useState(checkStorageLimit());
 
   useEffect(() => {
     setSummary(getTestDataSummary());
+    setApiQuota(checkApiQuota());
+    setStorageInfo(checkStorageLimit());
   }, []);
+
+  const toggleSection = (section: string) => {
+    const newExpanded = new Set(expandedSections);
+    if (newExpanded.has(section)) {
+      newExpanded.delete(section);
+    } else {
+      newExpanded.add(section);
+    }
+    setExpandedSections(newExpanded);
+  };
+
+  const handleSaveIrsRate = () => {
+    const rate = parseFloat(irsRate);
+    if (isNaN(rate) || rate < 0.01 || rate > 2.00) {
+      alert("Rate must be between $0.01 and $2.00 per mile");
+      return;
+    }
+    const newSettings = { ...settings, irsRate: rate, showDollarAmounts };
+    saveSettings(newSettings);
+    setSettings(newSettings);
+    alert("Settings saved!");
+  };
 
   const handleGenerateTestData = async () => {
     setIsGenerating(true);
@@ -465,6 +501,95 @@ function SettingsView({
         </button>
       </div>
 
+      {/* IRS Mileage Rate */}
+      <Card>
+        <h3 className="font-medium text-white mb-3">IRS Mileage Rate</h3>
+        <div className="space-y-4">
+          <div>
+            <Input
+              label="Rate ($/mile)"
+              type="number"
+              step="0.01"
+              min="0.01"
+              max="2.00"
+              value={irsRate}
+              onChange={(e) => setIrsRate(e.target.value)}
+            />
+            <p className="text-xs text-slate-500 mt-1">
+              Current IRS standard rate is $0.67/mile (2024)
+            </p>
+          </div>
+          <label className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              checked={showDollarAmounts}
+              onChange={(e) => setShowDollarAmounts(e.target.checked)}
+              className="w-4 h-4 bg-slate-800 border-slate-700 rounded"
+            />
+            <span className="text-sm text-slate-200">Show dollar amounts in app</span>
+          </label>
+          <Button
+            variant="primary"
+            className="w-full"
+            onClick={handleSaveIrsRate}
+          >
+            Save Rate Settings
+          </Button>
+          <p className="text-xs text-yellow-500">
+            ⚠️ IRS rate changes annually. Verify current rate at irs.gov
+          </p>
+        </div>
+      </Card>
+
+      {/* API Usage */}
+      <Card>
+        <h3 className="font-medium text-white mb-3">Google Maps API Usage</h3>
+        <div className="space-y-2 text-sm">
+          <div className="flex justify-between">
+            <span className="text-slate-400">This month:</span>
+            <span className="text-white">{apiQuota.used} / {apiQuota.limit.toLocaleString()} calls</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-slate-400">Usage:</span>
+            <span className={apiQuota.percentage > 80 ? "text-yellow-400" : "text-white"}>
+              {apiQuota.percentage.toFixed(1)}%
+            </span>
+          </div>
+          {apiQuota.percentage > 80 && (
+            <p className="text-yellow-500 text-xs mt-2">
+              ⚠️ Approaching API limit. Maps may be disabled soon.
+            </p>
+          )}
+          {apiQuota.exceeded && (
+            <p className="text-red-500 text-xs mt-2">
+              ❌ API limit reached. Autocomplete and maps disabled until next month.
+            </p>
+          )}
+        </div>
+      </Card>
+
+      {/* Storage */}
+      <Card>
+        <h3 className="font-medium text-white mb-3">Storage Usage</h3>
+        <div className="space-y-2 text-sm">
+          <div className="flex justify-between">
+            <span className="text-slate-400">Used:</span>
+            <span className="text-white">{storageInfo.size.toFixed(2)} MB / 5 MB</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-slate-400">Percentage:</span>
+            <span className={storageInfo.warning ? "text-yellow-400" : "text-white"}>
+              {storageInfo.percentage.toFixed(1)}%
+            </span>
+          </div>
+          {storageInfo.warning && (
+            <p className="text-yellow-500 text-xs mt-2">
+              ⚠️ Storage approaching limit. Consider exporting and archiving old trips.
+            </p>
+          )}
+        </div>
+      </Card>
+
       {/* Data Summary */}
       <Card>
         <h3 className="font-medium text-white mb-3">Data Summary</h3>
@@ -482,6 +607,75 @@ function SettingsView({
             <span className="text-white">{summary.dateRange}</span>
           </div>
         </div>
+      </Card>
+
+      {/* Saved Places */}
+      <Card>
+        <button
+          onClick={() => toggleSection('places')}
+          className="w-full flex items-center justify-between text-left"
+        >
+          <h3 className="font-medium text-white">Saved Places</h3>
+          <svg
+            className={`w-5 h-5 text-slate-400 transition-transform ${expandedSections.has('places') ? 'rotate-180' : ''}`}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        {expandedSections.has('places') && (
+          <div className="mt-4">
+            <SavedPlaceManager />
+          </div>
+        )}
+      </Card>
+
+      {/* Trip Templates */}
+      <Card>
+        <button
+          onClick={() => toggleSection('templates')}
+          className="w-full flex items-center justify-between text-left"
+        >
+          <h3 className="font-medium text-white">Trip Templates</h3>
+          <svg
+            className={`w-5 h-5 text-slate-400 transition-transform ${expandedSections.has('templates') ? 'rotate-180' : ''}`}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        {expandedSections.has('templates') && (
+          <div className="mt-4">
+            <TripTemplateManager />
+          </div>
+        )}
+      </Card>
+
+      {/* Trip Categories */}
+      <Card>
+        <button
+          onClick={() => toggleSection('categories')}
+          className="w-full flex items-center justify-between text-left"
+        >
+          <h3 className="font-medium text-white">Trip Categories</h3>
+          <svg
+            className={`w-5 h-5 text-slate-400 transition-transform ${expandedSections.has('categories') ? 'rotate-180' : ''}`}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        {expandedSections.has('categories') && (
+          <div className="mt-4">
+            <TripCategoryManager />
+          </div>
+        )}
       </Card>
 
       {/* Test Data */}

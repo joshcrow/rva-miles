@@ -24,6 +24,7 @@ import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import StarIcon from '@mui/icons-material/Star';
 import StarOutlineIcon from '@mui/icons-material/StarOutline';
+import NfcIcon from '@mui/icons-material/Nfc';
 import { useRouter } from 'next/navigation';
 import { Vehicle } from '@/types';
 import {
@@ -34,6 +35,7 @@ import {
   generateId,
 } from '@/lib/storage';
 import { useSnackbarStore } from '@/stores/snackbar';
+import NfcWriteDialog from '@/components/nfc/NfcWriteDialog';
 
 export default function VehiclesPage() {
   const router = useRouter();
@@ -41,6 +43,7 @@ export default function VehiclesPage() {
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [nfcVehicle, setNfcVehicle] = useState<Vehicle | null>(null);
   const { showSnackbar } = useSnackbarStore();
 
   const [formData, setFormData] = useState({
@@ -184,7 +187,7 @@ export default function VehiclesPage() {
                 </Typography>
               )}
             </CardContent>
-            <CardActions sx={{ px: 2.5, pb: 2, pt: 0, gap: 1 }}>
+            <CardActions sx={{ px: 2.5, pb: 2, pt: 0, gap: 1, flexWrap: 'wrap' }}>
               {!vehicle.isDefault && (
                 <Button
                   size="small"
@@ -195,6 +198,14 @@ export default function VehiclesPage() {
                   Set Default
                 </Button>
               )}
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<NfcIcon />}
+                onClick={() => setNfcVehicle(vehicle)}
+              >
+                NFC Sticker
+              </Button>
               <Box sx={{ flex: 1 }} />
               <Button
                 size="small"
@@ -288,6 +299,12 @@ export default function VehiclesPage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <NfcWriteDialog
+        open={!!nfcVehicle}
+        onClose={() => setNfcVehicle(null)}
+        vehicle={nfcVehicle}
+      />
     </Container>
   );
 }

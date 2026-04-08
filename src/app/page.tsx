@@ -20,11 +20,13 @@ import {
 } from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import EditNoteOutlinedIcon from '@mui/icons-material/EditNoteOutlined';
+import NfcIcon from '@mui/icons-material/Nfc';
 import { Trip, Vehicle, GpsPoint } from '@/types';
 import { useGeolocation } from '@/hooks/useGeolocation';
 import { useWakeLock } from '@/hooks/useWakeLock';
 import { useNoSleep } from '@/hooks/useNoSleep';
 import { usePlatform } from '@/hooks/usePlatform';
+import { useNfc } from '@/hooks/useNfc';
 import { useTrackingStore } from '@/stores/tracking';
 import { useSnackbarStore } from '@/stores/snackbar';
 import {
@@ -43,6 +45,7 @@ import StopTripSheet from '@/components/trip/StopTripSheet';
 import TrackingStatusIndicator from '@/components/trip/TrackingStatusIndicator';
 import ManualTripForm from '@/components/trip/ManualTripForm';
 import TripHistory from '@/components/trip/TripHistory';
+import NfcTripPrompt from '@/components/nfc/NfcTripPrompt';
 
 export default function HomePage() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -53,10 +56,18 @@ export default function HomePage() {
   const [showIOSChecklist, setShowIOSChecklist] = useState(false);
   const [showManualTripForm, setShowManualTripForm] = useState(false);
   const [trips, setTrips] = useState<Trip[]>([]);
+  const [nfcPromptVehicle, setNfcPromptVehicle] = useState<Vehicle | null>(null);
 
   const { isIOS, isMobile } = usePlatform();
   const { setTracking } = useTrackingStore();
   const { showSnackbar } = useSnackbarStore();
+  const {
+    isSupported: nfcSupported,
+    isScanning: nfcScanning,
+    lastRead: nfcLastRead,
+    startScan: startNfcScan,
+    clearLastRead: clearNfcLastRead,
+  } = useNfc();
 
   const {
     currentPosition,
@@ -102,6 +113,30 @@ export default function HomePage() {
       setTracking(true);
     }
   }, [setTracking]);
+
+  // Auto-start NFC scanning when not tracking a trip
+  useEffect(() => {
+    if (nfcSupported && !activeTrip && !nfcScanning) {
+      startNfcScan();
+    }
+  }, [nfcSupported, activeTrip, nfcScanning, startNfcScan]);
+
+  // Handle NFC tag reads - show business/personal prompt
+  useEffect(() => {
+    if (!nfcLastRead || activeTrip) return;
+
+    const matchedVehicle = vehicles.find((v) => v.id === nfcLastRead.vehicleId);
+    if (matchedVehicle) {
+      setSelectedVehicleId(matchedVehicle.id);
+      setNfcPromptVehicle(matchedVehicle);
+    } else {
+      showSnackbar({
+        message: `Vehicle "${nfcLastRead.vehicleName || 'unknown'}" not found. It may have been deleted.`,
+        severity: 'warning',
+      });
+    }
+    clearNfcLastRead();
+  }, [nfcLastRead, vehicles, activeTrip, clearNfcLastRead, showSnackbar]);
 
   useEffect(() => {
     if (!activeTrip) return;
@@ -239,6 +274,23 @@ export default function HomePage() {
     showSnackbar({ message: 'Trip discarded', severity: 'info' });
   }, [stopTracking, releaseWakeLock, disableNoSleep, setTracking, showSnackbar]);
 
+  const handleNfcBusiness = useCallback(async () => {
+    setNfcPromptVehicle(null);
+    if (!geoSupported) {
+      showSnackbar({ message: 'Geolocation is not supported on this device', severity: 'error' });
+      return;
+    }
+    if (isIOS && isMobile) {
+      setShowIOSChecklist(true);
+      return;
+    }
+    await startTripTracking();
+  }, [geoSupported, isIOS, isMobile, startTripTracking, showSnackbar]);
+
+  const handleNfcDismiss = useCallback(() => {
+    setNfcPromptVehicle(null);
+  }, []);
+
   const handleSaveManualTrip = useCallback((trip: Trip) => {
     const updatedTrips = addTrip(trip);
     setTrips(updatedTrips);
@@ -369,12 +421,28 @@ export default function HomePage() {
         Add Manual Trip
       </Button>
 
+      {nfcSupported && nfcScanning && (
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5, mt: 1 }}>
+          <NfcIcon sx={{ fontSize: 16, color: 'success.main' }} />
+          <Typography variant="caption" color="success.main">
+            NFC ready — tap your sticker to start
+          </Typography>
+        </Box>
+      )}
+
       <ManualTripForm
         open={showManualTripForm}
         onClose={() => setShowManualTripForm(false)}
         vehicles={vehicles}
         defaultVehicleId={selectedVehicleId}
         onSave={handleSaveManualTrip}
+      />
+
+      <NfcTripPrompt
+        open={!!nfcPromptVehicle}
+        onClose={handleNfcDismiss}
+        vehicle={nfcPromptVehicle}
+        onBusiness={handleNfcBusiness}
       />
 
       {trips.length > 0 && (

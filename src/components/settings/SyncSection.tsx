@@ -1,10 +1,13 @@
 "use client";
 
-// Minimal push/pull sync keyed by a hand-typed code. GET the server's
-// snapshot, merge it in locally (never destructive — see mergePlan in
-// db.ts), then PUT the merged result back so both devices converge.
+// The sync code, and a live answer to the only question the user actually has
+// about sync: is it working right now? The cycle itself lives in
+// `src/lib/sync.ts` and runs on its own (`src/lib/autosync.ts`) — "Sync now"
+// is kept as a small manual nudge for the moment someone is standing next to
+// the other phone and doesn't want to wait.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import Alert from "@mui/material/Alert";
 import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
@@ -16,17 +19,20 @@ import Typography from "@mui/material/Typography";
 import CasinoRoundedIcon from "@mui/icons-material/CasinoRounded";
 import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded";
 import SyncRoundedIcon from "@mui/icons-material/SyncRounded";
-import type { MergeResult, Settings, Snapshot } from "@/types";
-import { exportSnapshot, importMerge } from "@/lib/db";
+import type { Settings } from "@/types";
 import { UserFacingError } from "@/lib/errors";
+import { getServerSyncState, getSyncState, subscribeSync, syncNow } from "@/lib/sync";
 import { uiActions } from "@/stores/ui";
-import { generateSyncCode, lastSyncedLabel, mergeResultText } from "./settingsLogic";
+import { generateSyncCode, mergeResultText, syncStatusLine } from "./settingsLogic";
 
 export interface SyncSectionProps {
   settings: Settings;
   onPatch: (patch: Partial<Settings>) => Promise<void>;
   onRefresh: () => Promise<void>;
 }
+
+/** "2 min ago" goes stale on a screen left open; re-read the clock slowly. */
+const TICK_MS = 30_000;
 
 async function copyToClipboard(text: string): Promise<void> {
   if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
@@ -38,9 +44,26 @@ async function copyToClipboard(text: string): Promise<void> {
 
 export function SyncSection({ settings, onPatch, onRefresh }: SyncSectionProps) {
   const [code, setCode] = useState(settings.syncCode ?? "");
-  const [syncing, setSyncing] = useState(false);
+  const [manualSyncing, setManualSyncing] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+  const state = useSyncExternalStore(subscribeSync, getSyncState, getServerSyncState);
 
   useEffect(() => setCode(settings.syncCode ?? ""), [settings.syncCode]);
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), TICK_MS);
+    return () => clearInterval(id);
+  }, []);
+
+  // The engine's own stamp is fresher than the settings this screen was
+  // rendered from, and it is the one that ticks while the screen stays open.
+  const lastSyncAt = state.lastSyncAt ?? settings.lastSyncAt;
+
+  // A finished cycle can have brought trips in from the other phone, and the
+  // counts above this card are read from the ledger — so re-read it.
+  useEffect(() => {
+    if (state.lastSyncAt) void onRefresh();
+  }, [state.lastSyncAt, onRefresh]);
 
   const commitCode = useCallback(
     (next: string) => {
@@ -63,49 +86,44 @@ export function SyncSection({ settings, onPatch, onRefresh }: SyncSectionProps) 
     }
   }, [code]);
 
-  const syncNow = useCallback(async () => {
-    const trimmed = code.trim();
+  const runManualSync = useCallback(async () => {
+    const trimmed = code.trim().toUpperCase();
     if (!trimmed) return;
-    setSyncing(true);
+    setManualSyncing(true);
     try {
-      const res = await fetch(`/api/sync?code=${encodeURIComponent(trimmed)}`);
-      let result: MergeResult = { tripsAdded: 0, tripsUpdated: 0, routesAdded: 0, routesUpdated: 0, skipped: 0 };
+      // The field saves on blur, but the button can be tapped first — commit
+      // what is on screen so a manual sync always uses the code she can see.
+      if (trimmed !== (settings.syncCode ?? "")) await onPatch({ syncCode: trimmed });
 
-      if (res.status === 200) {
-        const remote = (await res.json()) as Snapshot;
-        result = await importMerge(remote);
-      } else if (res.status !== 404) {
-        throw new UserFacingError("The sync server isn't responding right now.");
+      const result = await syncNow();
+      if (result.ok) {
+        uiActions.showSnack(
+          `Synced — ${mergeResultText(result.merged, "nothing new from your other phone")}`,
+          "success",
+        );
+      } else {
+        const after = getSyncState();
+        if (after.status === "offline") {
+          uiActions.showSnack("Offline — will sync when you're back", "warning");
+        } else {
+          uiActions.showError(undefined, after.lastError ?? "Couldn't sync right now.");
+        }
       }
-
-      const snapshot = await exportSnapshot();
-      const put = await fetch(`/api/sync?code=${encodeURIComponent(trimmed)}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(snapshot),
-      });
-      if (!put.ok) throw new UserFacingError("Couldn't save your trips to the sync server.");
-
-      await onPatch({ lastSyncAt: Date.now() });
-      await onRefresh();
-      uiActions.showSnack(
-        `Synced — ${mergeResultText(result, "nothing new from your other phone")}`,
-        "success",
-      );
-    } catch (err) {
-      uiActions.showError(err, "Couldn't sync right now.");
     } finally {
-      setSyncing(false);
+      setManualSyncing(false);
     }
-  }, [code, onPatch, onRefresh]);
+  }, [code, settings.syncCode, onPatch]);
+
+  const hasCode = code.trim().length > 0;
+  const busy = state.status === "syncing" || manualSyncing;
 
   return (
     <Card>
       <CardContent>
         <Stack spacing={2}>
           <Typography variant="body2" color="text.secondary">
-            Enter the same code on both phones, then tap Sync on each. Newer changes always win, and
-            nothing is ever deleted.
+            Enter the same code on both phones. Each one then keeps itself up to date on its own —
+            newer changes win, and nothing is ever deleted.
           </Typography>
 
           <TextField
@@ -138,20 +156,39 @@ export function SyncSection({ settings, onPatch, onRefresh }: SyncSectionProps) 
             }}
           />
 
-          <Button
-            fullWidth
-            size="large"
-            variant="contained"
-            startIcon={<SyncRoundedIcon />}
-            disabled={!code.trim() || syncing}
-            onClick={() => void syncNow()}
-          >
-            {syncing ? "Syncing…" : "Sync now"}
-          </Button>
-
-          <Typography variant="caption" color="text.secondary">
-            {lastSyncedLabel(settings.lastSyncAt, Date.now())}
-          </Typography>
+          {!hasCode ? (
+            <Typography variant="caption" color="text.secondary">
+              Nothing leaves this phone until a code is set.
+            </Typography>
+          ) : state.status === "error" ? (
+            <Alert
+              severity="error"
+              action={
+                <Button color="inherit" size="small" disabled={busy} onClick={() => void runManualSync()}>
+                  Retry
+                </Button>
+              }
+            >
+              {state.lastError}
+            </Alert>
+          ) : (
+            <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
+              <Typography
+                variant="caption"
+                sx={{ color: state.status === "offline" ? "warning.main" : "text.secondary" }}
+              >
+                {syncStatusLine(state.status, lastSyncAt, now)}
+              </Typography>
+              <Button
+                size="small"
+                startIcon={<SyncRoundedIcon />}
+                disabled={busy}
+                onClick={() => void runManualSync()}
+              >
+                Sync now
+              </Button>
+            </Stack>
+          )}
         </Stack>
       </CardContent>
     </Card>

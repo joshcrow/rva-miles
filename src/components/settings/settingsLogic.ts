@@ -26,6 +26,44 @@ export function lastSyncedLabel(at: number | undefined, now: number): string {
   return `Synced ${days} days ago`;
 }
 
+const MINUTE_MS = 60_000;
+const HOUR_MS = 60 * MINUTE_MS;
+
+/**
+ * How long ago, as a bare phrase. Sync now runs by itself, so "today" is far
+ * too coarse to tell the user whether it is actually working — the useful
+ * answer at the moment she looks is "just now".
+ */
+export function syncAgoLabel(at: number, now: number): string {
+  const ms = Math.max(0, now - at);
+  if (ms < MINUTE_MS) return "just now";
+  if (ms < HOUR_MS) {
+    const mins = Math.floor(ms / MINUTE_MS);
+    return `${mins} min ago`;
+  }
+  if (ms < DAY_MS) {
+    const hours = Math.floor(ms / HOUR_MS);
+    return hours === 1 ? "1 hour ago" : `${hours} hours ago`;
+  }
+  const days = Math.floor(ms / DAY_MS);
+  return days === 1 ? "yesterday" : `${days} days ago`;
+}
+
+/**
+ * The live status line under the sync code. Failure is not one of the cases:
+ * an error gets an Alert with a Retry, not a caption.
+ */
+export function syncStatusLine(
+  status: "idle" | "syncing" | "offline",
+  lastSyncAt: number | undefined,
+  now: number,
+): string {
+  if (status === "syncing") return "Syncing…";
+  if (status === "offline") return "Offline — will sync when you're back.";
+  if (!lastSyncAt) return "Waiting to sync.";
+  return `Synced · ${syncAgoLabel(lastSyncAt, now)}`;
+}
+
 const BACKUP_STALE_DAYS = 30;
 const NEVER_BACKED_UP_TRIP_FLOOR = 10;
 const RECENT_SYNC_DAYS = 7;

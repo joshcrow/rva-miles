@@ -46,6 +46,25 @@ npm run lint / typecheck / test / build
 node scripts/gen-icons.mjs   # re-cut icons + favicon from the brand SVG
 ```
 
+### Demo mode
+
+Open the app at `/?demo=1` and it reloads onto a
+**separate `rva-miles-demo` IndexedDB database**, seeded with ten weeks
+of staged trips so every data-dependent state — ranked tiles, the catch-up
+banner, a part-elapsed pay period, mixed per-trip rates, a stop journey, a GPS
+track — can be looked at on a real phone. A "Demo data" pill sits at the top of
+every screen; Exit clears the flag and reloads. The real ledger is never opened
+while demo mode is on, and the v1 import is skipped there, so nothing seeded
+can reach your own trips. Entry is by URL only — there is no button in the app.
+
+`/?demo=messy` opens a second, equally isolated ledger
+(**`rva-miles-demo-messy`**, pill: "Demo — messy data") holding nineteen months
+of deliberately ugly but entirely valid data — 150-odd trips, a 60-trip month,
+a trip dated next week, place names that do not fit, four identical trips on
+one day and a journey where nothing was billed — for judging how the UI
+degrades. Switching between `?demo=1` and `?demo=messy` reloads onto the other
+database; neither can see the other's trips.
+
 ## Deploying
 
 Import the repo into [Vercel](https://vercel.com/new) and it builds; any

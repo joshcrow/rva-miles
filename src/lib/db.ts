@@ -23,6 +23,71 @@ interface KvRow {
   value: unknown;
 }
 
+// ---------------------------------------------------------------------------
+// Demo mode
+// ---------------------------------------------------------------------------
+
+/** localStorage flag, set only by the `?demo=…` entry in AppShell. */
+export const DEMO_FLAG_KEY = "rva-miles-demo";
+
+/**
+ * Which staged ledger a demo session is running. "clean" is the believable
+ * ten-week week; "messy" is the deliberately ugly fixture used to critique how
+ * the UI degrades. They are separate databases, so neither can see the other.
+ */
+export type DemoVariant = "clean" | "messy";
+
+/**
+ * The stored flag value that selects each variant. "1" is kept for "clean"
+ * because that is what every `?demo=1` link already handed out writes.
+ */
+export const DEMO_FLAG_VALUES: Record<DemoVariant, string> = {
+  clean: "1",
+  messy: "messy",
+};
+
+const REAL_DB_NAME = "rva-miles";
+const DEMO_DB_NAMES: Record<DemoVariant, string> = {
+  clean: "rva-miles-demo",
+  messy: "rva-miles-demo-messy",
+};
+
+const VARIANT_BY_FLAG = new Map<string, DemoVariant>(
+  (Object.keys(DEMO_FLAG_VALUES) as DemoVariant[]).map((v) => [DEMO_FLAG_VALUES[v], v]),
+);
+
+/**
+ * The demo variant this browser is running, or null for the real ledger.
+ * SSR-safe (null on the server), and null if localStorage is unreadable or
+ * holds a value we don't recognise — the real ledger is the safe default in
+ * every one of those cases.
+ */
+export function demoVariant(): DemoVariant | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(DEMO_FLAG_KEY);
+    return raw ? VARIANT_BY_FLAG.get(raw) ?? null : null;
+  } catch {
+    return null;
+  }
+}
+
+/** True for either demo variant: nothing outside db.ts needs to know which. */
+export function isDemoMode(): boolean {
+  return demoVariant() !== null;
+}
+
+/**
+ * Chosen ONCE, at module init, so a page load talks to exactly one database
+ * for its whole life — the demo ledgers and the real one can never be open in
+ * the same load, and no write can land in the wrong one. Entering, leaving, or
+ * switching demo variant therefore reloads the page (see AppShell).
+ */
+const DB_NAME = (() => {
+  const variant = demoVariant();
+  return variant ? DEMO_DB_NAMES[variant] : REAL_DB_NAME;
+})();
+
 class RvaMilesDb extends Dexie {
   trips!: Table<Trip, string>;
   routes!: Table<Route, string>;
@@ -30,7 +95,7 @@ class RvaMilesDb extends Dexie {
   activeDrive!: Table<ActiveDrive, string>;
 
   constructor() {
-    super("rva-miles");
+    super(DB_NAME);
     this.version(1).stores({
       trips: "id, dateKey, updatedAt, deletedAt",
       routes: "id, lastUsedAt",
@@ -425,9 +490,13 @@ function v1PlaceFrom(p: V1GpsPoint | null | undefined, address?: string): Place 
  * One-time import of v1's localStorage ledger into the v2 Dexie store.
  * Idempotent via a flag row in `kv`; safe to call on every app boot.
  * Leaves the v1 localStorage data in place (no destructive cleanup).
+ *
+ * Never runs in demo mode: v1's localStorage belongs to the real ledger, and
+ * importing it here would put the user's own trips into the demo database.
  */
 export async function migrateFromV1IfNeeded(): Promise<number> {
   if (typeof window === "undefined") return 0;
+  if (isDemoMode()) return 0;
 
   const already = await db.kv.get(MIGRATION_FLAG_KEY);
   if (already) return 0;

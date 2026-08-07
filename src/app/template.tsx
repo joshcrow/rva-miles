@@ -11,7 +11,7 @@ import { consumeTabSwitch, savedScrollFor } from "@/components/tabNav";
 //   settle animation.
 export default function Template({ children }: { children: ReactNode }) {
   const pathname = usePathname() ?? "/";
-  const isTab = useMemo(consumeTabSwitch, []);
+  const isTab = useMemo(() => consumeTabSwitch(), []);
 
   useLayoutEffect(() => {
     if (!isTab) return;

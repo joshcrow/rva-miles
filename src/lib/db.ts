@@ -273,7 +273,12 @@ function assertValidRoute(r: unknown, index: number): asserts r is Route {
   }
 }
 
-function validateSnapshot(s: unknown): Snapshot {
+/**
+ * Throws a descriptive Error on anything `importMerge` would refuse. Exported
+ * so the import *preview* can reject a bad file up front, instead of promising
+ * a merge that the write then declines.
+ */
+export function validateSnapshot(s: unknown): Snapshot {
   if (!s || typeof s !== "object") throw new Error("importMerge: snapshot is not an object");
   const rec = s as Record<string, unknown>;
   if (rec.schema !== 2) {

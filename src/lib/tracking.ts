@@ -19,6 +19,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ActiveDrive, DriveStatus, GpsPoint, LatLng } from "@/types";
 import { acceptFix, haversineMiles, simplifyTrack } from "./geo";
 import { clearActiveDrive, getActiveDrive, saveActiveDrive } from "./db";
+import { newId } from "./ids";
 import { uiActions } from "@/stores/ui";
 
 export interface CompletedDrive {
@@ -270,7 +271,7 @@ export function useDriveTracking(): DriveTrackingApi {
     }
 
     const engine: DriveEngine = {
-      id: crypto.randomUUID(),
+      id: newId(),
       vehicle,
       startedAt: Date.now(),
       points: [],

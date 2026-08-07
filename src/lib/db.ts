@@ -23,6 +23,38 @@ interface KvRow {
   value: unknown;
 }
 
+// ---------------------------------------------------------------------------
+// Demo mode
+// ---------------------------------------------------------------------------
+
+/** localStorage flag, set only by the `?demo=1` entry in AppShell. */
+export const DEMO_FLAG_KEY = "rva-miles-demo";
+
+const REAL_DB_NAME = "rva-miles";
+const DEMO_DB_NAME = "rva-miles-demo";
+
+/**
+ * True when this browser is running the isolated demo ledger. SSR-safe (false
+ * on the server), and false if localStorage is unreadable — the real ledger is
+ * the safe default in both cases.
+ */
+export function isDemoMode(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(DEMO_FLAG_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Chosen ONCE, at module init, so a page load talks to exactly one database
+ * for its whole life — the demo ledger and the real one can never be open in
+ * the same load, and no write can land in the wrong one. Entering or leaving
+ * demo mode therefore reloads the page (see AppShell).
+ */
+const DB_NAME = isDemoMode() ? DEMO_DB_NAME : REAL_DB_NAME;
+
 class RvaMilesDb extends Dexie {
   trips!: Table<Trip, string>;
   routes!: Table<Route, string>;
@@ -30,7 +62,7 @@ class RvaMilesDb extends Dexie {
   activeDrive!: Table<ActiveDrive, string>;
 
   constructor() {
-    super("rva-miles");
+    super(DB_NAME);
     this.version(1).stores({
       trips: "id, dateKey, updatedAt, deletedAt",
       routes: "id, lastUsedAt",
@@ -425,9 +457,13 @@ function v1PlaceFrom(p: V1GpsPoint | null | undefined, address?: string): Place 
  * One-time import of v1's localStorage ledger into the v2 Dexie store.
  * Idempotent via a flag row in `kv`; safe to call on every app boot.
  * Leaves the v1 localStorage data in place (no destructive cleanup).
+ *
+ * Never runs in demo mode: v1's localStorage belongs to the real ledger, and
+ * importing it here would put the user's own trips into the demo database.
  */
 export async function migrateFromV1IfNeeded(): Promise<number> {
   if (typeof window === "undefined") return 0;
+  if (isDemoMode()) return 0;
 
   const already = await db.kv.get(MIGRATION_FLAG_KEY);
   if (already) return 0;

@@ -13,12 +13,14 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "
 import type { Route, Settings, Trip } from "@/types";
 import {
   getSettings,
+  isDemoMode,
   listRoutes,
   listTrips,
   migrateFromV1IfNeeded,
   purgeDeleted,
   requestPersistence,
 } from "@/lib/db";
+import { ensureDemoSeed } from "@/lib/demo";
 import { compareKeys, todayKey } from "@/lib/dates";
 import { currentDefaultRate } from "@/lib/rates";
 import { uiActions } from "@/stores/ui";
@@ -46,7 +48,14 @@ let bootstrap: Promise<number> | null = null;
 function bootstrapOnce(): Promise<number> {
   if (!bootstrap) {
     bootstrap = (async () => {
-      const migrated = await migrateFromV1IfNeeded();
+      // The demo ledger is a different database with its own first-run work:
+      // it seeds itself, and never imports the real v1 localStorage.
+      let migrated = 0;
+      if (isDemoMode()) {
+        await ensureDemoSeed();
+      } else {
+        migrated = await migrateFromV1IfNeeded();
+      }
       // Best-effort and never throws; a denied request just means the browser
       // may evict storage under pressure.
       void requestPersistence();

@@ -124,6 +124,8 @@ export interface Settings {
   lastSyncAt?: number;
   onboardedAt?: number;
   installCoachDismissedAt?: number;
+  /** Set when the one-time "a tap logs a trip" lesson is answered; unset means show it. */
+  routeTapEducatedAt?: number;
 }
 
 export interface DateRange {

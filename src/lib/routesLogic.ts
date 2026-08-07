@@ -48,8 +48,14 @@ export function rankTiles(routes: Route[], trips: Trip[], todayKey: string): Rou
 /**
  * Finds weekdays in the last `lookbackDays` (default 7, today excluded)
  * with zero non-deleted trips logged, and proposes the routes historically
- * usual for that weekday — those used at least twice on that weekday within
- * the last 60 days — capped at 2 suggestions per empty day, most-used first.
+ * usual for that weekday — those used on at least 2 DISTINCT DATES on that
+ * weekday within the last 60 days (multiple trips logged the same day count
+ * once — same-day duplicates are not evidence of a weekly habit) — capped
+ * at 2 suggestions per empty day, most-used first.
+ *
+ * Never proposes a dateKey before the earliest non-deleted trip's dateKey —
+ * the app has no way to know what the user did before their first-ever
+ * logged trip. A user with no trips at all gets no suggestions.
  */
 export function catchUpSuggestions(
   routes: Route[],
@@ -58,26 +64,37 @@ export function catchUpSuggestions(
   lookbackDays: number = DEFAULT_CATCHUP_LOOKBACK_DAYS,
 ): Array<{ dateKey: string; route: Route }> {
   const activeTrips = trips.filter((t) => !t.deletedAt);
+  if (activeTrips.length === 0) return [];
+
+  const earliestTripKey = activeTrips.reduce(
+    (earliest, t) => (compareKeys(t.dateKey, earliest) < 0 ? t.dateKey : earliest),
+    activeTrips[0].dateKey,
+  );
+
   const routesById = new Map(routes.map((r) => [r.id, r]));
   const results: Array<{ dateKey: string; route: Route }> = [];
 
   for (let i = 1; i <= lookbackDays; i++) {
     const dateKey = addDaysKey(todayKey, -i);
+    if (compareKeys(dateKey, earliestTripKey) < 0) continue; // predates the user's first-ever trip
     const alreadyLogged = activeTrips.some((t) => t.dateKey === dateKey);
     if (alreadyLogged) continue;
 
     const weekday = weekdayOfKey(dateKey);
-    const usesByRouteId = new Map<string, number>();
+    const datesByRouteId = new Map<string, Set<string>>();
     for (const trip of activeTrips) {
       if (!trip.routeId) continue;
       if (weekdayOfKey(trip.dateKey) !== weekday) continue;
       if (!isWithinLastNDays(trip.dateKey, todayKey, RANK_WINDOW_DAYS)) continue;
-      usesByRouteId.set(trip.routeId, (usesByRouteId.get(trip.routeId) ?? 0) + 1);
+      const dates = datesByRouteId.get(trip.routeId) ?? new Set<string>();
+      dates.add(trip.dateKey);
+      datesByRouteId.set(trip.routeId, dates);
     }
 
-    const usual = Array.from(usesByRouteId.entries())
-      .filter(([, count]) => count >= MIN_WEEKDAY_USES_FOR_CATCHUP)
-      .map(([routeId, count]) => ({ route: routesById.get(routeId), count }))
+    const usual = Array.from(datesByRouteId.entries())
+      .map(([routeId, dates]) => ({ routeId, count: dates.size }))
+      .filter(({ count }) => count >= MIN_WEEKDAY_USES_FOR_CATCHUP)
+      .map(({ routeId, count }) => ({ route: routesById.get(routeId), count }))
       .filter((x): x is { route: Route; count: number } => x.route != null && !x.route.archived && !x.route.deletedAt)
       .sort((a, b) => b.count - a.count)
       .slice(0, MAX_CATCHUP_SUGGESTIONS_PER_DAY);

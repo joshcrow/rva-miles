@@ -119,7 +119,65 @@ describe("catchUpSuggestions", () => {
     expect(suggestions.some((s) => s.dateKey === yesterday)).toBe(false);
   });
 
-  it("proposes routes used >=2 times on the empty day's weekday in the last 60d, ordered by frequency and capped at 2", () => {
+  it("requires evidence from >=2 distinct dates — multiple same-day trips don't count twice", () => {
+    const emptyDay = addDaysKey(TODAY, -7); // same weekday as TODAY, itself empty
+    const routeDuplicateDay = makeRoute(); // 2 trips, but logged on the SAME calendar date
+    const routeDistinctDays = makeRoute(); // 2 trips on 2 different calendar dates
+    const sameDate = addDaysKey(emptyDay, -7);
+
+    const trips = [
+      // Same-day double-logging: 2 trips, 1 distinct dateKey. Must NOT qualify.
+      makeTrip({ routeId: routeDuplicateDay.id, dateKey: sameDate }),
+      makeTrip({ routeId: routeDuplicateDay.id, dateKey: sameDate }),
+      // 2 trips across 2 different weeks on the same weekday. Must qualify.
+      makeTrip({ routeId: routeDistinctDays.id, dateKey: addDaysKey(emptyDay, -7) }),
+      makeTrip({ routeId: routeDistinctDays.id, dateKey: addDaysKey(emptyDay, -14) }),
+    ];
+
+    const suggestions = catchUpSuggestions([routeDuplicateDay, routeDistinctDays], trips, TODAY);
+    const forEmptyDay = suggestions.filter((s) => s.dateKey === emptyDay);
+    expect(forEmptyDay.map((s) => s.route.id)).toEqual([routeDistinctDays.id]);
+  });
+
+  it("never proposes a dateKey earlier than the earliest non-deleted trip's dateKey", () => {
+    const routeA = makeRoute();
+    const firstTripDate = addDaysKey(TODAY, -14); // the user's very first-ever trip
+    const secondEvidenceDate = addDaysKey(TODAY, -7); // a 2nd distinct date, same weekday
+    const candidateDay = addDaysKey(TODAY, -21); // same weekday again, but predates the first trip
+    expect(weekdayOfKey(firstTripDate)).toBe(weekdayOfKey(TODAY));
+    expect(weekdayOfKey(secondEvidenceDate)).toBe(weekdayOfKey(TODAY));
+    expect(weekdayOfKey(candidateDay)).toBe(weekdayOfKey(TODAY));
+
+    const trips = [
+      // 2 distinct-date uses on this weekday — would otherwise be "usual" evidence.
+      makeTrip({ routeId: routeA.id, dateKey: firstTripDate }),
+      makeTrip({ routeId: routeA.id, dateKey: secondEvidenceDate }),
+    ];
+
+    // Use a lookback long enough to reach candidateDay (21 days back).
+    const suggestions = catchUpSuggestions([routeA], trips, TODAY, 25);
+    expect(suggestions.some((s) => s.dateKey === candidateDay)).toBe(false);
+  });
+
+  it("returns no suggestions at all when there are no trips logged yet", () => {
+    const routeA = makeRoute();
+    expect(catchUpSuggestions([routeA], [], TODAY)).toEqual([]);
+  });
+
+  it("regression: a brand-new user with one route and two same-day trips gets no suggestions", () => {
+    // Reproduces the reported defect: a first-time user logs the same route
+    // twice on their first day. That must not be read as a weekly habit, and
+    // the app must not propose any day before that first trip existed.
+    const routeA = makeRoute();
+    const trips = [
+      makeTrip({ routeId: routeA.id, dateKey: TODAY }),
+      makeTrip({ routeId: routeA.id, dateKey: TODAY }),
+    ];
+    const suggestions = catchUpSuggestions([routeA], trips, TODAY);
+    expect(suggestions).toEqual([]);
+  });
+
+  it("proposes routes used on >=2 distinct dates on the empty day's weekday in the last 60d, ordered by frequency and capped at 2", () => {
     const emptyDay = addDaysKey(TODAY, -7); // same weekday as today, itself has zero trips
     const routeTop = makeRoute();
     const routeMid = makeRoute();

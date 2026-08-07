@@ -11,7 +11,7 @@ import InputAdornment from "@mui/material/InputAdornment";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import AutoAwesomeRoundedIcon from "@mui/icons-material/AutoAwesomeRounded";
+import AccountBalanceRoundedIcon from "@mui/icons-material/AccountBalanceRounded";
 import type { Settings } from "@/types";
 import { defaultRateFor, formatRate } from "@/lib/rates";
 import { uiActions } from "@/stores/ui";
@@ -109,7 +109,7 @@ export function ProfileSection({ settings, today, onPatch }: ProfileSectionProps
               {showIrsChip ? (
                 <Chip
                   size="small"
-                  icon={<AutoAwesomeRoundedIcon sx={{ fontSize: 16 }} />}
+                  icon={<AccountBalanceRoundedIcon sx={{ fontSize: 16 }} />}
                   label="Use current IRS rate"
                   onClick={useIrsRate}
                   variant="outlined"

@@ -80,6 +80,12 @@ describe("every surface agrees on the same trips", () => {
     range: { startKey: "2026-08-01", endKey: "2026-08-15" },
   };
 
+  it("the report's computeTotals is totalsOf itself, not a second copy of it", () => {
+    // It used to be a line-for-line duplicate. Identity, not equality: a
+    // reimplementation behind the same alias is exactly the drift this guards.
+    expect(computeTotals).toBe(totalsOf);
+  });
+
   it("home, trips, report and the CSV totals row are identical", () => {
     const home = homeTotals(trips);
     const ledger = tripsTotals(trips);

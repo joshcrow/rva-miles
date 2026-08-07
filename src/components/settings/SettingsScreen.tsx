@@ -1,11 +1,13 @@
 "use client";
 
-// Three goal-based groups in the order the work happens: get the report right,
-// keep the ledger safe, then the app itself. Grouping by goal rather than by
-// object means a card only has to be found once — you come here to fix a
-// report, not to visit "Profile". Every field still auto-saves (blur for free
-// text, immediately for selects and toggles); nothing here needs a Save
-// button, and nothing here needs a confirmation dialog.
+// Two goal-based groups in the order the work happens: get the report right,
+// then keep the ledger safe. Grouping by goal rather than by object means a
+// card only has to be found once — you come here to fix a report, not to
+// visit "Profile". Below them, Appearance and InstallCoach carry no group of
+// their own — "App" never earned its keep as a goal — and a bare version
+// stamp closes the screen. Every field still auto-saves (blur for free text,
+// immediately for selects and toggles); nothing here needs a Save button, and
+// nothing here needs a confirmation dialog.
 
 import { useMemo } from "react";
 import type { ReactNode } from "react";
@@ -18,7 +20,6 @@ import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
 import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
 import InstallCoach from "@/components/InstallCoach";
 import { todayKey } from "@/lib/dates";
-import AboutSection from "./AboutSection";
 import AppearanceSection from "./AppearanceSection";
 import DataSection from "./DataSection";
 import PayScheduleSection from "./PayScheduleSection";
@@ -28,6 +29,7 @@ import SectionLabel from "./SectionLabel";
 import SettingsSkeleton from "./SettingsSkeleton";
 import SyncSection from "./SyncSection";
 import { useSettingsData } from "./useSettingsData";
+import VersionFooter from "./VersionFooter";
 
 export function SettingsScreen() {
   const data = useSettingsData();
@@ -78,14 +80,16 @@ export function SettingsScreen() {
       ) : null}
 
       {/* Everything that has to be right before a report goes out. */}
-      <Group title="Reporting">
+      <Group title="Your report">
         <ProfileSection settings={data.settings} today={today} onPatch={data.patchSettings} />
         <PayScheduleSection settings={data.settings} today={today} onPatch={data.patchSettings} />
         <RecipientSection settings={data.settings} onPatch={data.patchSettings} />
       </Group>
 
       {/* Where the ledger lives, and the two ways to move it. The storage fact
-          leads the group because it is the reason backup and sync exist. */}
+          leads the group because it is the reason backup and sync exist. Sync
+          only ever appears as a card inside here — this caption stays silent
+          on it, so an unconfigured build never names a thing it can't show. */}
       <Group title="Your data" caption="Your trips are stored on this device, not on a server.">
         <DataSection
           settings={data.settings}
@@ -100,13 +104,16 @@ export function SettingsScreen() {
         ) : null}
       </Group>
 
-      {/* InstallCoach renders nothing once installed or dismissed, so this
-          group quietly shrinks to two cards. */}
-      <Group title="App">
+      {/* No group label: "App" never named a goal, just a leftover object.
+          InstallCoach renders nothing once installed or dismissed, so it goes
+          last — anywhere earlier would leave a gap between neighbors when it
+          disappears. */}
+      <Stack spacing={1.5}>
         <AppearanceSection settings={data.settings} onPatch={data.patchSettings} />
         <InstallCoach />
-        <AboutSection />
-      </Group>
+      </Stack>
+
+      <VersionFooter />
     </Stack>
   );
 }

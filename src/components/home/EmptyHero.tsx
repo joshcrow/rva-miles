@@ -46,7 +46,7 @@ export function EmptyHero({ onNewTrip }: { onNewTrip: () => void }) {
         Log your first trip
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mt: 1, mx: "auto", maxWidth: 300 }}>
-        Enter it once and it becomes a tile — every drive after that is a single tap.
+        Log a trip once, then repeat it with one tap.
       </Typography>
 
       <Stack spacing={1.25} sx={{ mt: 3, mx: "auto", maxWidth: 300 }}>

@@ -16,7 +16,7 @@ import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import NavigationRoundedIcon from "@mui/icons-material/NavigationRounded";
 import type { DateRange, Place, Route, Trip } from "@/types";
 import { formatKey, isKeyInRange } from "@/lib/dates";
-import { archiveRoute, putRoute, putTrip, softDeleteTrip } from "@/lib/db";
+import { archiveRoute, getSettings, putRoute, putTrip, saveSettings, softDeleteTrip } from "@/lib/db";
 import { periodContaining, periodPresets } from "@/lib/periods";
 import { catchUpSuggestions, rankTiles } from "@/lib/routesLogic";
 import { uiActions } from "@/stores/ui";
@@ -35,6 +35,7 @@ import NewTripTile from "./NewTripTile";
 import PeriodChip from "./PeriodChip";
 import RecentTrips from "./RecentTrips";
 import RouteMenuSheet from "./RouteMenuSheet";
+import RouteTapSheet from "./RouteTapSheet";
 import RouteTile from "./RouteTile";
 import { fmtMiles, placeKey, placeLabel, totalsOf } from "./format";
 import { CONTINUE_TRIP_PARAM, buildTripFromRoute, bumpRoute } from "./tripActions";
@@ -44,6 +45,15 @@ const MAX_TILES = 7;
 /** Slightly longer than RouteTile's 450ms pulse so the animation completes. */
 const PULSE_MS = 500;
 const SAVE_FAILED = "Couldn't save that trip — nothing was logged.";
+
+/**
+ * Recent earns its space only once there is a list worth scanning. With one
+ * route and one trip it just repeats the tile above it and the day's header,
+ * which reads as a bug rather than a summary.
+ */
+const RECENT_MIN_TRIPS = 3;
+/** Rows shown once Recent is worth showing at all. */
+const RECENT_ROWS = 3;
 
 // --- "continue from here", handed over from the trips ledger ---------------
 // The URL is the external store: `?continue=<tripId>` is read through
@@ -110,12 +120,55 @@ export function HomeScreen() {
   const [newTripFrom, setNewTripFrom] = useState<Place | null>(null);
   const [continuingFrom, setContinuingFrom] = useState("");
   const [newTripKey, setNewTripKey] = useState(0);
+  // The route outlives the open flag on purpose (as with the route menu): the
+  // sheet keeps rendering through its close animation, and a route cleared on
+  // close would flash "Log 0.0 mi" on the way out.
+  const [tapLessonRoute, setTapLessonRoute] = useState<Route | null>(null);
+  const [tapLessonOpen, setTapLessonOpen] = useState(false);
 
   const continueId = useSyncExternalStore(subscribeContinueParam, readContinueParam, () => "");
 
   const toastSeq = useRef(0);
   const pulseTimer = useRef<number | null>(null);
   const migrationAnnounced = useRef(false);
+
+  // ---------------------------------------------------------------------
+  // One-time route-tap lesson
+  // ---------------------------------------------------------------------
+  // The flag is read and written straight through the db module rather than
+  // through useHomeData: answering the sheet must take effect on the very
+  // next tap, not after the ledger happens to refresh.
+  //
+  // It is held as a promise, not a boolean, so a tap that beats the read
+  // waits for the answer instead of logging as though the lesson were done.
+  // Resolves false — log as normal — when settings can't be read at all; that
+  // failure is already reported by the ledger load, and it must not take the
+  // one-tap mechanic down with it.
+  const [tapLessonDue] = useState<Promise<boolean>>(() =>
+    typeof window === "undefined"
+      ? Promise.resolve(false)
+      : getSettings().then(
+          (s) => s.routeTapEducatedAt === undefined,
+          () => false,
+        ),
+  );
+  const tapLessonAnswered = useRef(false);
+
+  /** Closes the lesson and remembers it, whichever button was pressed. */
+  const rememberTapLesson = useCallback(() => {
+    tapLessonAnswered.current = true;
+    setTapLessonOpen(false);
+    void (async () => {
+      try {
+        const s = await getSettings();
+        await saveSettings({ ...s, routeTapEducatedAt: Date.now() });
+      } catch {
+        // Housekeeping: the whole cost of this write failing is that the
+        // lesson appears once more. Nothing in the ledger is at stake, and a
+        // red snackbar next to a freshly logged trip would say otherwise.
+      }
+    })();
+  }, []);
 
   useEffect(
     () => () => {
@@ -314,7 +367,7 @@ export function HomeScreen() {
     [upsertTrip, refresh, showLogged],
   );
 
-  const onTileTap = useCallback(
+  const logTile = useCallback(
     async (route: Route) => {
       const logged = await logFromRoute(route, today);
       if (!logged) return;
@@ -331,6 +384,21 @@ export function HomeScreen() {
       );
     },
     [logFromRoute, today, showLogged, makeRoundTrip],
+  );
+
+  // The first route tap this app has ever seen explains itself instead of
+  // firing. Every tap after that logs immediately — the mechanic is the
+  // product, it just can't arrive unannounced.
+  const onTileTap = useCallback(
+    async (route: Route) => {
+      if (!tapLessonAnswered.current && (await tapLessonDue)) {
+        setTapLessonRoute(route);
+        setTapLessonOpen(true);
+        return;
+      }
+      await logTile(route);
+    },
+    [tapLessonDue, logTile],
   );
 
   const logForDay = useCallback(
@@ -596,7 +664,15 @@ export function HomeScreen() {
 
         <InstallCoach compact />
 
-        <RecentTrips trips={trips.slice(0, 3)} today={today} onContinue={continueFromTrip} />
+        {/* `trips` is already tombstone-free — listTrips filters deletions —
+            so this counts only what she can actually see. */}
+        {trips.length >= RECENT_MIN_TRIPS ? (
+          <RecentTrips
+            trips={trips.slice(0, RECENT_ROWS)}
+            today={today}
+            onContinue={continueFromTrip}
+          />
+        ) : null}
       </Stack>
 
       <LoggedToast state={toast} onClose={() => setToast(null)} />
@@ -627,6 +703,20 @@ export function HomeScreen() {
         routes={routes}
         topOrigins={topOrigins}
         onSubmit={submitNewTrip}
+      />
+
+      {/* Swiping or closing this without answering leaves the flag unset on
+          purpose: a lesson dismissed unread is a lesson she never got. */}
+      <RouteTapSheet
+        open={tapLessonOpen}
+        route={tapLessonRoute}
+        onClose={() => setTapLessonOpen(false)}
+        onLog={() => {
+          const route = tapLessonRoute;
+          rememberTapLesson();
+          if (route) void logTile(route);
+        }}
+        onCancel={rememberTapLesson}
       />
 
       <RouteMenuSheet

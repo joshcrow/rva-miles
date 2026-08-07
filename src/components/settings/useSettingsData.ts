@@ -5,6 +5,10 @@
 // optimistic (instant UI feedback) but reverts to the truth on disk and
 // surfaces a loud error the moment a save actually fails — settings must
 // never silently drift from what's persisted.
+//
+// Revisiting the tab paints the last known values synchronously from a
+// module-level snapshot and re-reads Dexie behind it, so a tab switch never
+// flashes a skeleton over data we already have.
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Settings } from "@/types";
@@ -15,6 +19,29 @@ import { uiActions } from "@/stores/ui";
 function fallbackSettings(): Settings {
   return { ratePerMile: currentDefaultRate(), theme: "system" };
 }
+
+/**
+ * Last successful read, at module scope so it outlives the unmount of a tab
+ * switch. Only effects and handlers write it, so it stays null through SSR and
+ * the first client render of a page load — first visits still show the
+ * skeleton and hydration still matches. Error states are never stored.
+ */
+interface SettingsSnapshot {
+  settings: Settings;
+  tripCount: number;
+  routeCount: number;
+  totalMiles: number;
+}
+
+let cache: SettingsSnapshot | null = null;
+
+/**
+ * Whether the deployment has sync configured is a property of the server, not
+ * of this mount, so the answer is remembered too — otherwise the Sync section
+ * pops into the page a beat after every revisit. A failed probe isn't an
+ * answer and isn't remembered.
+ */
+let syncCache: boolean | null = null;
 
 export interface SettingsDataApi {
   ready: boolean;
@@ -31,33 +58,53 @@ export interface SettingsDataApi {
 }
 
 export function useSettingsData(): SettingsDataApi {
-  const [ready, setReady] = useState(false);
+  // A cached snapshot means this tab has been shown before: paint it now and
+  // revalidate underneath instead of showing a skeleton for a local read.
+  const [ready, setReady] = useState(cache !== null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [settings, setSettings] = useState<Settings>(fallbackSettings);
-  const [tripCount, setTripCount] = useState(0);
-  const [routeCount, setRouteCount] = useState(0);
-  const [totalMiles, setTotalMiles] = useState(0);
-  const [syncConfigured, setSyncConfigured] = useState<boolean | null>(null);
+  const [settings, setSettings] = useState<Settings>(() => cache?.settings ?? fallbackSettings());
+  const [tripCount, setTripCount] = useState(() => cache?.tripCount ?? 0);
+  const [routeCount, setRouteCount] = useState(() => cache?.routeCount ?? 0);
+  const [totalMiles, setTotalMiles] = useState(() => cache?.totalMiles ?? 0);
+  const [syncConfigured, setSyncConfigured] = useState<boolean | null>(() => syncCache);
   const alive = useRef(true);
 
-  // Mirrors `settings` but is updated synchronously, so two patches issued
-  // before React re-renders (blur one field, immediately toggle another) both
-  // merge onto the newest value instead of the second clobbering the first.
-  const latest = useRef<Settings>(settings);
+  // Mirrors the loaded values but is updated synchronously, so two patches
+  // issued before React re-renders (blur one field, immediately toggle
+  // another) both merge onto the newest value instead of the second clobbering
+  // the first. Every write goes through it, so the module cache can never
+  // drift from what's on screen.
+  const latest = useRef<SettingsSnapshot>({ settings, tripCount, routeCount, totalMiles });
 
-  const applySettings = useCallback((s: Settings) => {
-    latest.current = s;
-    setSettings(s);
+  // Bumped by every optimistic patch. A read that started before the patch
+  // carries older truth, so it is dropped rather than reverting the control
+  // the user just moved.
+  const editSeq = useRef(0);
+
+  const commit = useCallback((patch: Partial<SettingsSnapshot>) => {
+    latest.current = { ...latest.current, ...patch };
+    cache = latest.current;
   }, []);
 
+  const applySettings = useCallback(
+    (s: Settings) => {
+      commit({ settings: s });
+      setSettings(s);
+    },
+    [commit],
+  );
+
   const refresh = useCallback(async () => {
+    const edits = editSeq.current;
     try {
       const [s, trips, routes] = await Promise.all([getSettings(), listTrips(), listRoutes()]);
-      if (!alive.current) return;
-      applySettings(s);
+      if (!alive.current || edits !== editSeq.current) return;
+      const miles = trips.reduce((sum, t) => sum + t.distanceMiles, 0);
+      commit({ settings: s, tripCount: trips.length, routeCount: routes.length, totalMiles: miles });
+      setSettings(s);
       setTripCount(trips.length);
       setRouteCount(routes.length);
-      setTotalMiles(trips.reduce((sum, t) => sum + t.distanceMiles, 0));
+      setTotalMiles(miles);
       setLoadError(null);
     } catch (err) {
       if (!alive.current) return;
@@ -65,7 +112,7 @@ export function useSettingsData(): SettingsDataApi {
       setLoadError(message);
       uiActions.showError(err, "Couldn't read your settings.");
     }
-  }, [applySettings]);
+  }, [commit]);
 
   useEffect(() => {
     alive.current = true;
@@ -83,9 +130,12 @@ export function useSettingsData(): SettingsDataApi {
     fetch("/api/sync?health=1")
       .then((res) => (res.ok ? res.json() : { configured: false }))
       .then((data: { configured?: boolean }) => {
-        if (active) setSyncConfigured(Boolean(data?.configured));
+        const configured = Boolean(data?.configured);
+        syncCache = configured;
+        if (active) setSyncConfigured(configured);
       })
       .catch(() => {
+        // Not an answer, so it isn't remembered — the next mount asks again.
         if (active) setSyncConfigured(false);
       });
     return () => {
@@ -95,7 +145,8 @@ export function useSettingsData(): SettingsDataApi {
 
   const patchSettings = useCallback(
     async (patch: Partial<Settings>) => {
-      const next = { ...latest.current, ...patch };
+      const next = { ...latest.current.settings, ...patch };
+      editSeq.current += 1;
       applySettings(next);
       try {
         await saveSettings(next);

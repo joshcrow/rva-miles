@@ -4,6 +4,10 @@
 // keeps it in sync through optimistic local mutators — every write path in
 // HomeScreen updates state first, persists, and calls refresh() only to
 // recover truth after a failure. Failures are never silent.
+//
+// Revisiting the tab paints the last known ledger synchronously from a
+// module-level snapshot and re-reads Dexie behind it (stale-while-revalidate),
+// so switching tabs never flashes a skeleton over data we already have.
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { Route, Settings, Trip } from "@/types";
@@ -55,6 +59,21 @@ function bootstrapOnce(): Promise<number> {
   return bootstrap;
 }
 
+/**
+ * Last successful read of the ledger, at module scope so it survives the
+ * unmount/remount of a tab switch. Only effects and event handlers ever write
+ * it, so it stays null through SSR and through the first client render of a
+ * page load — a first visit still renders the skeleton, and hydration still
+ * matches. Error states are never stored here.
+ */
+interface HomeSnapshot {
+  trips: Trip[];
+  routes: Route[];
+  settings: Settings;
+}
+
+let cache: HomeSnapshot | null = null;
+
 // The local calendar date is a client-only fact: rendering it on the server
 // would key off the server's timezone and mismatch on hydration. Reading it
 // through useSyncExternalStore gives '' on the server and re-reads whenever
@@ -86,29 +105,57 @@ export interface HomeDataApi {
 }
 
 export function useHomeData(): HomeDataApi {
-  const [ready, setReady] = useState(false);
+  // A cached snapshot means this tab has been shown before: paint it now and
+  // revalidate underneath, rather than making the user watch a skeleton for a
+  // read that takes a millisecond.
+  const [ready, setReady] = useState(cache !== null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const today = useSyncExternalStore(
     subscribeToday,
     todayKey,
     () => "",
   );
-  const [trips, setTrips] = useState<Trip[]>([]);
-  const [routes, setRoutes] = useState<Route[]>([]);
-  const [settings, setSettings] = useState<Settings>(() => ({
+  const [trips, setTrips] = useState<Trip[]>(() => cache?.trips ?? []);
+  const [routes, setRoutes] = useState<Route[]>(() => cache?.routes ?? []);
+  const [settings, setSettings] = useState<Settings>(() => cache?.settings ?? {
     ratePerMile: currentDefaultRate(),
     theme: "system",
-  }));
+  });
   const [migratedCount, setMigratedCount] = useState(0);
   const alive = useRef(true);
 
+  // Mirrors the three data slices synchronously, so two mutators fired in one
+  // event (drop a trip, restore its route) compose instead of the second
+  // overwriting the first, and so the module cache always matches state.
+  const latest = useRef<HomeSnapshot>({ trips, routes, settings });
+
+  // Bumped by every local mutation. A Dexie read that started before a
+  // mutation carries older truth than the optimistic state, so it is dropped
+  // rather than allowed to resurrect what the user just changed.
+  const editSeq = useRef(0);
+
+  const publish = useCallback((next: HomeSnapshot) => {
+    latest.current = next;
+    cache = next;
+    setTrips(next.trips);
+    setRoutes(next.routes);
+    setSettings(next.settings);
+  }, []);
+
+  const mutate = useCallback(
+    (patch: Partial<HomeSnapshot>) => {
+      editSeq.current += 1;
+      publish({ ...latest.current, ...patch });
+    },
+    [publish],
+  );
+
   const refresh = useCallback(async () => {
+    const edits = editSeq.current;
     try {
       const [t, r, s] = await Promise.all([listTrips(), listRoutes(), getSettings()]);
-      if (!alive.current) return;
-      setTrips(sortTrips(t));
-      setRoutes(sortRoutes(r));
-      setSettings(s);
+      if (!alive.current || edits !== editSeq.current) return;
+      publish({ trips: sortTrips(t), routes: sortRoutes(r), settings: s });
       setLoadError(null);
     } catch (err) {
       if (!alive.current) return;
@@ -116,7 +163,7 @@ export function useHomeData(): HomeDataApi {
       setLoadError("Couldn't read your saved trips.");
       uiActions.showError(err, "Couldn't read your saved trips.");
     }
-  }, []);
+  }, [publish]);
 
   useEffect(() => {
     alive.current = true;
@@ -151,21 +198,33 @@ export function useHomeData(): HomeDataApi {
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, [refresh]);
 
-  const upsertTrip = useCallback((t: Trip) => {
-    setTrips((prev) => sortTrips([...prev.filter((x) => x.id !== t.id), t]));
-  }, []);
+  const upsertTrip = useCallback(
+    (t: Trip) => {
+      mutate({ trips: sortTrips([...latest.current.trips.filter((x) => x.id !== t.id), t]) });
+    },
+    [mutate],
+  );
 
-  const dropTrip = useCallback((id: string) => {
-    setTrips((prev) => prev.filter((t) => t.id !== id));
-  }, []);
+  const dropTrip = useCallback(
+    (id: string) => {
+      mutate({ trips: latest.current.trips.filter((t) => t.id !== id) });
+    },
+    [mutate],
+  );
 
-  const upsertRoute = useCallback((r: Route) => {
-    setRoutes((prev) => sortRoutes([...prev.filter((x) => x.id !== r.id), r]));
-  }, []);
+  const upsertRoute = useCallback(
+    (r: Route) => {
+      mutate({ routes: sortRoutes([...latest.current.routes.filter((x) => x.id !== r.id), r]) });
+    },
+    [mutate],
+  );
 
-  const dropRoute = useCallback((id: string) => {
-    setRoutes((prev) => prev.filter((r) => r.id !== id));
-  }, []);
+  const dropRoute = useCallback(
+    (id: string) => {
+      mutate({ routes: latest.current.routes.filter((r) => r.id !== id) });
+    },
+    [mutate],
+  );
 
   return {
     ready,

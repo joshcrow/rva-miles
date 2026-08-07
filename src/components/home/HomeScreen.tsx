@@ -616,6 +616,15 @@ export function HomeScreen() {
           </Box>
         ) : (
           <Box component="section">
+            {/* Keeps the unusual mechanic legible forever, not just in the
+                one-time first-tap lesson. */}
+            <Typography
+              variant="overline"
+              color="text.secondary"
+              sx={{ display: "block", mb: 0.75, letterSpacing: "0.09em" }}
+            >
+              Your routes — tap to log
+            </Typography>
             <Box
               sx={{
                 display: "grid",

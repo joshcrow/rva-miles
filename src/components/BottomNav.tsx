@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { markTabSwitch } from "@/components/tabNav";
 import BottomNavigation from "@mui/material/BottomNavigation";
 import BottomNavigationAction from "@mui/material/BottomNavigationAction";
 import Box from "@mui/material/Box";
@@ -65,6 +66,7 @@ export function BottomNav() {
             href={href}
             prefetch={false}
             aria-label={label}
+            onClick={() => markTabSwitch(pathname)}
             icon={<Icon sx={{ fontSize: 26 }} />}
           />
         ))}

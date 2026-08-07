@@ -10,9 +10,13 @@ import {
   mergeResultText,
   parseRateInput,
   periodPreviewLabel,
+  syncAgoLabel,
+  syncStatusLine,
 } from "../settingsLogic";
 
 const DAY_MS = 86_400_000;
+const MINUTE_MS = 60_000;
+const HOUR_MS = 60 * MINUTE_MS;
 
 describe("daysAgoLabel", () => {
   // Rendered after "Last backup: ", so every branch has to be a bare value.
@@ -75,6 +79,62 @@ describe("backupNudge", () => {
   it("a recent sync suppresses the nudge — the data is not only on this phone", () => {
     expect(backupNudge(undefined, now - 2 * DAY_MS, 40, now)).toBeNull();
     expect(backupNudge(now - 60 * DAY_MS, now - 2 * DAY_MS, 40, now)).toBeNull();
+  });
+
+  // Sync now runs by itself, so a healthy phone stamps lastSyncAt every few
+  // minutes. The nudge has to stay silent through all of that and speak again
+  // the moment sync stops working for a week.
+  it("stays silent while auto-sync is healthy", () => {
+    expect(backupNudge(undefined, now - 2 * MINUTE_MS, 400, now)).toBeNull();
+    expect(backupNudge(now - 90 * DAY_MS, now - 30_000, 400, now)).toBeNull();
+  });
+
+  it("speaks again once sync has been failing for over a week", () => {
+    expect(backupNudge(undefined, now - 8 * DAY_MS, 40, now)).toBe(
+      "Your 40 trips exist only on this phone.",
+    );
+  });
+});
+
+describe("syncAgoLabel", () => {
+  const now = 1_700_000_000_000;
+
+  it("says just now inside the first minute", () => {
+    expect(syncAgoLabel(now - 5_000, now)).toBe("just now");
+  });
+  it("counts minutes", () => {
+    expect(syncAgoLabel(now - 2 * MINUTE_MS, now)).toBe("2 min ago");
+    expect(syncAgoLabel(now - 59 * MINUTE_MS, now)).toBe("59 min ago");
+  });
+  it("counts hours, singular and plural", () => {
+    expect(syncAgoLabel(now - HOUR_MS, now)).toBe("1 hour ago");
+    expect(syncAgoLabel(now - 5 * HOUR_MS, now)).toBe("5 hours ago");
+  });
+  it("says yesterday, then days", () => {
+    expect(syncAgoLabel(now - DAY_MS, now)).toBe("yesterday");
+    expect(syncAgoLabel(now - 4 * DAY_MS, now)).toBe("4 days ago");
+  });
+  it("never reads as the future when the clocks disagree", () => {
+    expect(syncAgoLabel(now + 10_000, now)).toBe("just now");
+  });
+});
+
+describe("syncStatusLine", () => {
+  const now = 1_700_000_000_000;
+
+  it("reports a healthy sync with how fresh it is", () => {
+    expect(syncStatusLine("idle", now - 2 * MINUTE_MS, now)).toBe("Synced · 2 min ago");
+  });
+  it("says what it is doing while it works", () => {
+    expect(syncStatusLine("syncing", now, now)).toBe("Syncing…");
+  });
+  it("names the offline case without alarm, and says what happens next", () => {
+    expect(syncStatusLine("offline", now - HOUR_MS, now)).toBe(
+      "Offline — will sync when you're back.",
+    );
+  });
+  it("has an honest line before the first sync", () => {
+    expect(syncStatusLine("idle", undefined, now)).toBe("Waiting to sync.");
   });
 });
 describe("formatBytes", () => {

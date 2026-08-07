@@ -14,6 +14,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Settings } from "@/types";
 import { getSettings, listRoutes, listTrips, saveSettings } from "@/lib/db";
 import { currentDefaultRate } from "@/lib/rates";
+import { isSyncConfigured, knownSyncConfigured } from "@/lib/sync";
 import { uiActions } from "@/stores/ui";
 
 function fallbackSettings(): Settings {
@@ -34,14 +35,6 @@ interface SettingsSnapshot {
 }
 
 let cache: SettingsSnapshot | null = null;
-
-/**
- * Whether the deployment has sync configured is a property of the server, not
- * of this mount, so the answer is remembered too — otherwise the Sync section
- * pops into the page a beat after every revisit. A failed probe isn't an
- * answer and isn't remembered.
- */
-let syncCache: boolean | null = null;
 
 export interface SettingsDataApi {
   ready: boolean;
@@ -66,7 +59,7 @@ export function useSettingsData(): SettingsDataApi {
   const [tripCount, setTripCount] = useState(() => cache?.tripCount ?? 0);
   const [routeCount, setRouteCount] = useState(() => cache?.routeCount ?? 0);
   const [totalMiles, setTotalMiles] = useState(() => cache?.totalMiles ?? 0);
-  const [syncConfigured, setSyncConfigured] = useState<boolean | null>(() => syncCache);
+  const [syncConfigured, setSyncConfigured] = useState<boolean | null>(() => knownSyncConfigured());
   const alive = useRef(true);
 
   // Mirrors the loaded values but is updated synchronously, so two patches
@@ -125,19 +118,16 @@ export function useSettingsData(): SettingsDataApi {
     };
   }, [refresh]);
 
+  // Whether the deployment has a sync store attached is a property of the
+  // server, not of this mount. The sync engine already asks that question and
+  // remembers a real answer for the session, so this reads its answer rather
+  // than keeping a second cache of the same fact — after the first visit the
+  // Sync card is there on the first paint instead of a beat later.
   useEffect(() => {
     let active = true;
-    fetch("/api/sync?health=1")
-      .then((res) => (res.ok ? res.json() : { configured: false }))
-      .then((data: { configured?: boolean }) => {
-        const configured = Boolean(data?.configured);
-        syncCache = configured;
-        if (active) setSyncConfigured(configured);
-      })
-      .catch(() => {
-        // Not an answer, so it isn't remembered — the next mount asks again.
-        if (active) setSyncConfigured(false);
-      });
+    void isSyncConfigured().then((configured) => {
+      if (active) setSyncConfigured(configured);
+    });
     return () => {
       active = false;
     };

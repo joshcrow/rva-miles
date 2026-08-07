@@ -74,17 +74,46 @@ service worker and home-screen install all require a secure context
 
 ### Optional: cross-device sync
 
-Sync stays hidden until the server is configured. Set either pair:
+**Attaching a KV store in the Vercel dashboard is the only step.** Storage →
+create/connect an Upstash Redis (or Vercel KV) database to the project, and
+redeploy. That sets the env vars; nothing in the app needs configuring.
 
 | Variables | Backing |
 |---|---|
 | `KV_REST_API_URL` / `KV_REST_API_TOKEN` | Vercel KV |
 | `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | Upstash Redis |
 
-Enter the same sync code on both phones and tap Sync on each. The server
-stores snapshots keyed by `sha256(code)`; merges are union-by-id with
-newer-wins, so sync adds and updates but never deletes anything you still
-have.
+With nothing attached, `/api/sync` answers `{configured:false}`, the Sync card
+never appears, and no other behaviour changes.
+
+With a store attached, Settings → Your data grows a Sync card. **The code is
+still the whole pairing mechanism**: type the same one on both phones. It is
+never stored anywhere — the server keys data by `sha256(code)` and never logs
+a payload. From then on **sync runs by itself**, with no button to remember:
+
+- about 20 seconds after edits stop (and never later than 2 minutes into a
+  long catch-up session)
+- shortly after the app opens, and when it returns to the foreground
+- on the way to the background, and again when the connection comes back
+
+Each cycle pulls, merges union-by-id with newer-wins, then pushes the union
+back — so sync adds and updates but never deletes anything you still have, and
+an interrupted cycle simply converges on the next one. Deletions travel as
+tombstones, so a trip deleted on one phone disappears on the other. The card
+shows live status ("Synced · 2 min ago", "Syncing…", "Offline — will sync when
+you're back"), and keeps a small "Sync now" for when you are standing next to
+the other phone. A demo ledger never syncs.
+
+The whole loop can be tested locally, with no cloud account:
+
+```bash
+node scripts/sync-e2e.mjs
+```
+
+`scripts/mock-kv.mjs` stands in for the KV REST API (in-memory, exactly the two
+commands the route issues). The E2E builds and serves the app against it and
+drives two isolated browser profiles through push, pull and tombstone
+propagation — without ever clicking Sync.
 
 ## Install it as an app
 
@@ -148,8 +177,9 @@ src/
   app/          / (home) /drive /trips /report /settings /r (shared report)
                 api/sync — optional, answers unconfigured cleanly
   components/   one folder per screen + the shell
-  lib/          db, dates, periods, rates, money, legs, exporters, reportlink,
-                geo, geocode, tracking, routesLogic — never imports from app/
+  lib/          db, sync + autosync, dates, periods, rates, money, legs,
+                exporters, reportlink, geo, geocode, tracking, routesLogic —
+                never imports from app/
   stores/       snackbar + undo channel
   theme/        tokens + MUI theme
   types/        domain types

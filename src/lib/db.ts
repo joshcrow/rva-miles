@@ -108,6 +108,54 @@ class RvaMilesDb extends Dexie {
 export const db = new RvaMilesDb();
 
 // ---------------------------------------------------------------------------
+// Local-write notifications (the auto-sync seam)
+// ---------------------------------------------------------------------------
+// Auto-sync needs to know when the ledger changed, but db.ts must not know
+// that auto-sync exists — it is the bottom of the import graph and everything
+// else reads from it. So the dependency runs one way only: `src/lib/autosync.ts`
+// registers a listener here at init, and db.ts calls it after a successful
+// write. Nothing here imports the sync layer.
+
+type WriteListener = () => void;
+
+let writeListener: WriteListener | null = null;
+let notifySuppressed = 0;
+
+/** Registers (or with null, removes) the single local-write listener. */
+export function setWriteListener(fn: WriteListener | null): void {
+  writeListener = fn;
+}
+
+/**
+ * Called after every write that changes the ledger or settings. A listener
+ * that throws is contained here: a broken notification must never fail the
+ * write that already succeeded.
+ */
+function notifyWrite(): void {
+  if (notifySuppressed > 0 || !writeListener) return;
+  try {
+    writeListener();
+  } catch (err) {
+    console.error("RVA Miles: write listener failed", err);
+  }
+}
+
+/**
+ * Runs `fn` with local-write notifications turned off. The sync engine wraps
+ * its own writes in this — applying what the server sent, and stamping
+ * `lastSyncAt` afterwards, are not user edits, and treating them as such would
+ * schedule a sync for every sync, forever.
+ */
+export async function withoutWriteNotifications<T>(fn: () => Promise<T>): Promise<T> {
+  notifySuppressed++;
+  try {
+    return await fn();
+  } finally {
+    notifySuppressed--;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Trips
 // ---------------------------------------------------------------------------
 
@@ -126,10 +174,12 @@ export async function getTrip(id: string): Promise<Trip | undefined> {
 
 export async function putTrip(t: Trip): Promise<void> {
   await db.trips.put(t);
+  notifyWrite();
 }
 
 export async function putTrips(ts: Trip[]): Promise<void> {
   await db.trips.bulkPut(ts);
+  notifyWrite();
 }
 
 async function mutateTrip(id: string, mutator: (t: Trip) => Trip): Promise<void> {
@@ -143,6 +193,7 @@ async function mutateTrip(id: string, mutator: (t: Trip) => Trip): Promise<void>
 export async function softDeleteTrip(id: string): Promise<void> {
   const now = Date.now();
   await mutateTrip(id, (t) => ({ ...t, deletedAt: now, updatedAt: now }));
+  notifyWrite();
 }
 
 export async function undeleteTrip(id: string): Promise<void> {
@@ -154,6 +205,7 @@ export async function undeleteTrip(id: string): Promise<void> {
     delete next.deletedAt;
     return next;
   });
+  notifyWrite();
 }
 
 /** Permanently removes trips soft-deleted more than `olderThanMs` ago. Returns count removed. */
@@ -176,6 +228,7 @@ export async function listRoutes(): Promise<Route[]> {
 
 export async function putRoute(r: Route): Promise<void> {
   await db.routes.put(r);
+  notifyWrite();
 }
 
 export async function archiveRoute(id: string): Promise<void> {
@@ -185,6 +238,7 @@ export async function archiveRoute(id: string): Promise<void> {
     if (!existing) throw new Error(`Route not found: ${id}`);
     await db.routes.put({ ...existing, archived: true, updatedAt: now });
   });
+  notifyWrite();
 }
 
 // ---------------------------------------------------------------------------
@@ -206,6 +260,7 @@ export async function getSettings(): Promise<Settings> {
 
 export async function saveSettings(s: Settings): Promise<void> {
   await db.kv.put({ key: SETTINGS_KEY, value: s });
+  notifyWrite();
 }
 
 // ---------------------------------------------------------------------------
@@ -412,6 +467,9 @@ export async function importMerge(s: Snapshot): Promise<MergeResult> {
     if (tripPlan.toPut.length) await db.trips.bulkPut(tripPlan.toPut);
     if (routePlan.toPut.length) await db.routes.bulkPut(routePlan.toPut);
   });
+  // A file import is a local change worth syncing. The sync engine's own
+  // merge is not, which is why it calls this inside withoutWriteNotifications.
+  if (tripPlan.toPut.length || routePlan.toPut.length) notifyWrite();
   return {
     tripsAdded: tripPlan.added,
     tripsUpdated: tripPlan.updated,

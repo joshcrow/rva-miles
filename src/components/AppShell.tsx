@@ -6,6 +6,7 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Typography from "@mui/material/Typography";
 import BottomNav from "./BottomNav";
+import { startAutoSync } from "@/lib/autosync";
 import { DEMO_FLAG_KEY, DEMO_FLAG_VALUES, demoVariant, type DemoVariant } from "@/lib/db";
 import { radii } from "@/theme/theme";
 
@@ -155,6 +156,14 @@ export function AppShell({ children }: { children: ReactNode }) {
   useEffect(() => {
     enterDemoFromUrl();
   }, []);
+
+  // Sync runs on its own from here on: after edits settle, on open, on the way
+  // to the background, and when the connection comes back. It costs nothing
+  // until the user sets a sync code, and it declines outright on a demo
+  // ledger — which is why this can sit in the shell rather than on a screen.
+  // Declared after the demo effect so a `?demo=…` link has already set the
+  // flag by the time this reads it.
+  useEffect(() => startAutoSync(), []);
 
   return (
     <>

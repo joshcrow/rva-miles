@@ -13,7 +13,7 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import AutoAwesomeRoundedIcon from "@mui/icons-material/AutoAwesomeRounded";
 import type { Settings } from "@/types";
-import { defaultRateFor } from "@/lib/rates";
+import { defaultRateFor, formatRate } from "@/lib/rates";
 import { parseRateInput } from "./settingsLogic";
 import { useSyncedField } from "./useSyncedField";
 
@@ -96,7 +96,7 @@ export function ProfileSection({ settings, today, onPatch }: ProfileSectionProps
               helperText={
                 rateInvalid
                   ? "Enter a rate greater than 0"
-                  : `IRS ${today.slice(0, 4)} business rate: $${irsRate.toFixed(2)}`
+                  : `IRS ${today.slice(0, 4)} business rate: ${formatRate(irsRate)}`
               }
             />
             <Stack direction="row" alignItems="center" spacing={1} flexWrap="wrap" useFlexGap>

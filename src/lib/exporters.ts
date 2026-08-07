@@ -5,6 +5,7 @@
 // only — never `new Date(dateKey)` — to stay immune to the UTC-parse bug.
 
 import type { DateRange, Place, Trip } from "@/types";
+import { formatRateDigits } from "./rates";
 
 export interface ReportMeta {
   title: string;
@@ -52,7 +53,7 @@ interface ReportRow {
   to: string;
   purpose: string;
   miles: number; // rounded to 1dp
-  rate: number; // rounded to 2dp
+  rate: number; // rounded to 3dp — IRS rates can carry a half cent (72.5c)
   amount: number; // rounded to 2dp
 }
 
@@ -79,7 +80,7 @@ function computeReportRows(trips: Trip[]): { rows: ReportRow[]; totals: ReportTo
     to: placeLabel(t.to),
     purpose: t.purpose ?? "",
     miles: roundTo(t.distanceMiles, 1),
-    rate: roundTo(t.ratePerMile, 2),
+    rate: roundTo(t.ratePerMile, 3),
     amount: roundTo(t.distanceMiles * t.ratePerMile, 2),
   }));
 
@@ -129,7 +130,7 @@ export function buildCsv(trips: Trip[], meta: ReportMeta): string {
         r.to,
         r.purpose,
         r.miles.toFixed(1),
-        r.rate.toFixed(2),
+        formatRateDigits(r.rate),
         r.amount.toFixed(2),
       ])
     );
@@ -149,6 +150,9 @@ const WHITE_ARGB = "FFFFFFFF";
 const MUTED_ARGB = "FF6B7280";
 const MILES_FMT = "0.0";
 const MONEY_FMT = '"$"#,##0.00';
+// Optional third digit: "$0.70" stays two-decimal, a half-cent rate shows as
+// "$0.725" instead of being silently rounded away in the sheet.
+const RATE_FMT = '"$"#,##0.00#';
 
 export async function buildXlsx(trips: Trip[], meta: ReportMeta): Promise<Blob> {
   const { default: ExcelJS } = await import("exceljs");
@@ -207,7 +211,7 @@ export async function buildXlsx(trips: Trip[], meta: ReportMeta): Promise<Blob> 
     milesCell.numFmt = MILES_FMT;
     const rateCell = dataRow.getCell(6);
     rateCell.value = row.rate;
-    rateCell.numFmt = MONEY_FMT;
+    rateCell.numFmt = RATE_FMT;
     const amountCell = dataRow.getCell(7);
     amountCell.value = row.amount;
     amountCell.numFmt = MONEY_FMT;
@@ -235,7 +239,9 @@ export async function buildXlsx(trips: Trip[], meta: ReportMeta): Promise<Blob> 
       const cell = sheet.getRow(rowIdx).getCell(c);
       let text: string;
       if (typeof cell.value === "number" && cell.numFmt) {
-        text = cell.numFmt === MILES_FMT ? cell.value.toFixed(1) : `$${cell.value.toFixed(2)}`;
+        if (cell.numFmt === MILES_FMT) text = cell.value.toFixed(1);
+        else if (cell.numFmt === RATE_FMT) text = `$${formatRateDigits(cell.value)}`;
+        else text = `$${cell.value.toFixed(2)}`;
       } else {
         text = String(cell.value ?? "");
       }
@@ -266,7 +272,7 @@ export function buildSummaryText(trips: Trip[], meta: ReportMeta): string {
     r.to,
     r.purpose,
     r.miles.toFixed(1),
-    `$${r.rate.toFixed(2)}`,
+    `$${formatRateDigits(r.rate)}`,
     `$${r.amount.toFixed(2)}`,
   ]);
 

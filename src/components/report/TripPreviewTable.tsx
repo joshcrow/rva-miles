@@ -7,17 +7,15 @@
 import { useState } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
-import EastRoundedIcon from "@mui/icons-material/EastRounded";
 import type { Trip } from "@/types";
+import { tripAmount } from "@/lib/money";
 import {
   fmtMiles,
   fmtMoney,
   formatKeyShort,
   placeLabelShort,
-  roundTo,
   computeTotals,
 } from "./reportData";
 
@@ -89,15 +87,26 @@ export function TripPreviewTable({ trips }: TripPreviewTableProps) {
             {formatKeyShort(t.dateKey)}
           </Typography>
 
-          <Stack direction="row" spacing={0.5} alignItems="center" sx={{ minWidth: 0 }}>
-            <Typography variant="body2" noWrap sx={{ fontWeight: 600, minWidth: 0 }}>
-              {placeLabelShort(t.from)}
-            </Typography>
-            <EastRoundedIcon sx={{ fontSize: 13, color: "text.disabled", flexShrink: 0 }} />
-            <Typography variant="body2" noWrap sx={{ fontWeight: 600, minWidth: 0 }}>
-              {placeLabelShort(t.to)}
-            </Typography>
-          </Stack>
+          {/* Wraps to two lines rather than truncating both endpoints — the
+              names are the review surface, "O… → Chesterf…" is unreviewable. */}
+          <Typography
+            variant="body2"
+            sx={{
+              fontWeight: 600,
+              minWidth: 0,
+              lineHeight: 1.3,
+              display: "-webkit-box",
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: "vertical",
+              overflow: "hidden",
+            }}
+          >
+            {placeLabelShort(t.from)}
+            <Box component="span" sx={{ color: "text.disabled" }}>
+              {" → "}
+            </Box>
+            {placeLabelShort(t.to)}
+          </Typography>
 
           <Typography variant="body2" className="tnum" sx={{ textAlign: "right" }}>
             {fmtMiles(t.distanceMiles)}
@@ -108,7 +117,7 @@ export function TripPreviewTable({ trips }: TripPreviewTableProps) {
             className="tnum"
             sx={{ textAlign: "right", fontWeight: 700, color: "success.main" }}
           >
-            {fmtMoney(roundTo(t.distanceMiles * t.ratePerMile, 2))}
+            {fmtMoney(tripAmount(t))}
           </Typography>
         </Box>
       ))}

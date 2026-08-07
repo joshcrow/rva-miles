@@ -13,6 +13,8 @@
 import type { DateRange, Place, ReportPayload, Settings, Trip } from "@/types";
 import { isKeyInRange } from "@/lib/dates";
 import type { ReportMeta } from "@/lib/exporters";
+import { formatRate } from "@/lib/rates";
+import { fmtMiles, fmtMoney, roundTo, tripAmount } from "@/lib/money";
 
 export const CUSTOM_PRESET_LABEL = "Custom";
 
@@ -22,10 +24,7 @@ const MONTHS_SHORT = [
 
 const DATE_KEY_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 
-export function roundTo(value: number, decimals: number): number {
-  const factor = 10 ** decimals;
-  return Math.round((value + Number.EPSILON) * factor) / factor;
-}
+export { roundTo, fmtMiles, fmtMoney };
 
 // --- date keys (string parsing only — never new Date('YYYY-MM-DD')) --------
 
@@ -93,32 +92,15 @@ export function normalizeRange(r: DateRange): DateRange {
 }
 
 // --- numbers ---------------------------------------------------------------
+// fmtMiles / fmtMoney / roundTo are re-exported from @/lib/money above.
 
-function group(intPart: string): string {
-  return intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-}
-
-function split(n: number, decimals: number): { sign: string; int: string; frac: string } {
-  const v = Number.isFinite(n) ? n : 0;
-  const [int, frac] = Math.abs(v).toFixed(decimals).split(".");
-  return { sign: v < 0 ? "-" : "", int: group(int), frac: frac ?? "" };
-}
-
-/** "214.6" — always one decimal, thousands-grouped. */
-export function fmtMiles(n: number): string {
-  const { sign, int, frac } = split(n, 1);
-  return `${sign}${int}.${frac}`;
-}
-
-/** "$150.22" — money is always rendered in success green by the caller. */
-export function fmtMoney(n: number): string {
-  const { sign, int, frac } = split(n, 2);
-  return `${sign}$${int}.${frac}`;
-}
-
-/** "$0.70" — the per-mile rate, always two decimals. */
+/**
+ * "$0.70" / "$0.725" — the per-mile rate. Keeps a third decimal when the rate
+ * carries a half cent (the 2026 IRS rate is 72.5c), because a rate rounded to
+ * cents stops reconciling against the amount it produced.
+ */
 export function fmtRate(n: number): string {
-  return fmtMoney(n);
+  return formatRate(n);
 }
 
 export function pluralTrips(n: number): string {
@@ -181,7 +163,7 @@ export function computeTotals(trips: Trip[]): ReportTotals {
   let money = 0;
   for (const t of trips) {
     miles = roundTo(miles + roundTo(t.distanceMiles, 1), 1);
-    money = roundTo(money + roundTo(t.distanceMiles * t.ratePerMile, 2), 2);
+    money = roundTo(money + tripAmount(t), 2);
   }
   return { count: trips.length, miles, money };
 }
@@ -304,6 +286,8 @@ export function payloadToMeta(p: ReportPayload): ReportMeta {
 export interface DisplayRow {
   dateKey: string;
   date: string;
+  /** Year-free variant for narrow phone columns; the period header has the year */
+  dateShort: string;
   from: string;
   to: string;
   purpose: string;
@@ -320,12 +304,13 @@ export function displayRows(trips: Trip[]): DisplayRow[] {
   return sortForReport(trips).map((t) => ({
     dateKey: t.dateKey,
     date: formatKeyFull(t.dateKey),
+    dateShort: formatKeyShort(t.dateKey),
     from: placeLabel(t.from),
     to: placeLabel(t.to),
     purpose: t.purpose ?? "",
     miles: fmtMiles(t.distanceMiles),
-    rate: fmtMoney(roundTo(t.ratePerMile, 2)),
-    amount: fmtMoney(roundTo(t.distanceMiles * t.ratePerMile, 2)),
+    rate: fmtRate(t.ratePerMile),
+    amount: fmtMoney(tripAmount(t)),
   }));
 }
 

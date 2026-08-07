@@ -87,8 +87,27 @@ describe("buildCsv", () => {
     const trips = [makeTrip({ distanceMiles: 12.34, ratePerMile: 0.655 })];
     const csv = buildCsv(trips, meta);
     const lines = csv.split("\r\n").filter(Boolean);
-    expect(lines[1]).toBe("2026-08-03,Home,Office,,12.3,0.66,8.08");
+    expect(lines[1]).toBe("2026-08-03,Home,Office,,12.3,0.655,8.08");
     expect(lines[2]).toBe(",,,Totals,12.3,,8.08");
+  });
+
+  // Published IRS rates carry half cents (2026 is 72.5c). Rounding the rate
+  // column to cents would print "$0.72" beside an amount computed at 0.725 —
+  // a report that visibly fails to reconcile is a report that gets sent back.
+  it("keeps a half-cent rate intact rather than rounding it to cents", () => {
+    const trips = [makeTrip({ distanceMiles: 100, ratePerMile: 0.725 })];
+    const lines = buildCsv(trips, meta).split("\r\n").filter(Boolean);
+    expect(lines[1]).toBe("2026-08-03,Home,Office,,100.0,0.725,72.50");
+
+    const summary = buildSummaryText(trips, meta);
+    expect(summary).toContain("$0.725");
+    expect(summary).not.toContain("$0.72 ");
+  });
+
+  it("still prints a whole-cent rate with two decimals", () => {
+    const trips = [makeTrip({ distanceMiles: 10, ratePerMile: 0.7 })];
+    const lines = buildCsv(trips, meta).split("\r\n").filter(Boolean);
+    expect(lines[1]).toBe("2026-08-03,Home,Office,,10.0,0.70,7.00");
   });
 
   it("sorts rows chronologically by dateKey regardless of input order", () => {
@@ -186,6 +205,11 @@ describe("buildXlsx", () => {
     expect(row1.getCell(7).value).toBe(5.1);
     expect(row1.getCell(7).numFmt).toBe('"$"#,##0.00');
 
+    // The rate is a real number too, kept at full precision so the sheet's
+    // own arithmetic reproduces the amount.
+    expect(row1.getCell(6).value).toBe(0.5);
+    expect(row1.getCell(6).numFmt).toBe('"$"#,##0.00#');
+
     // Row 10: totals, bold, reconciling with the displayed rows.
     const totalsRow = sheet.getRow(10);
     expect(totalsRow.getCell(4).value).toBe("Totals");
@@ -196,6 +220,22 @@ describe("buildXlsx", () => {
 
     // Column widths were sized (not left at default/undefined).
     expect(sheet.getColumn(2).width).toBeGreaterThan(0);
+  });
+
+  it("writes a half-cent rate into the sheet without rounding it to cents", async () => {
+    const trips = [makeTrip({ distanceMiles: 100, ratePerMile: 0.725 })];
+    const blob = await buildXlsx(trips, meta);
+    const ExcelJS = (await import("exceljs")).default;
+    const workbook = new ExcelJS.Workbook();
+    const buffer = Buffer.from(await blob.arrayBuffer());
+    await workbook.xlsx.load(buffer as unknown as Parameters<typeof workbook.xlsx.load>[0]);
+    const sheet = workbook.getWorksheet("Mileage Report");
+    if (!sheet) throw new Error("missing sheet");
+    const row = sheet.getRow(8);
+    // miles * rate must reproduce the amount inside Excel itself.
+    expect(row.getCell(6).value).toBe(0.725);
+    expect(row.getCell(7).value).toBe(72.5);
+    expect((row.getCell(5).value as number) * (row.getCell(6).value as number)).toBe(72.5);
   });
 
   it("still produces a valid workbook for an empty trip list", async () => {

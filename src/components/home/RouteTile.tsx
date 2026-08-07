@@ -5,7 +5,6 @@ import Box from "@mui/material/Box";
 import ButtonBase from "@mui/material/ButtonBase";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
-import ArrowRightAltRoundedIcon from "@mui/icons-material/ArrowRightAltRounded";
 import SyncAltRoundedIcon from "@mui/icons-material/SyncAltRounded";
 import type { Route } from "@/types";
 import { fmtMiles, placeLabel } from "./format";
@@ -131,16 +130,26 @@ export function RouteTile({ route, usesThisMonth, pulsing, onTap, onLongPress }:
         >
           {placeLabel(route.to)}
         </Typography>
-        <Stack direction="row" spacing={0.25} alignItems="center" sx={{ mt: 0.25, minWidth: 0 }}>
-          <ArrowRightAltRoundedIcon sx={{ fontSize: 15, color: "text.disabled", flexShrink: 0 }} />
-          <Typography variant="caption" color="text.secondary" noWrap>
-            {placeLabel(route.from)}
-          </Typography>
-        </Stack>
+        <Typography variant="caption" color="text.secondary" noWrap sx={{ display: "block", mt: 0.25 }}>
+          <Box component="span" sx={{ color: "text.disabled" }}>
+            from{" "}
+          </Box>
+          {placeLabel(route.from)}
+        </Typography>
       </Box>
 
-      <Stack direction="row" alignItems="flex-end" justifyContent="space-between" sx={{ mt: 1.25, width: "100%" }}>
-        <Stack direction="row" alignItems="baseline" spacing={0.4} sx={{ minWidth: 0 }}>
+      {/* Wraps rather than shrinks: the mileage is the glanceable number and
+          must never be squeezed (or overlapped) by the usage caption — long
+          place names and large accessibility text sizes both make this row
+          too narrow for one line. */}
+      <Stack
+        direction="row"
+        alignItems="flex-end"
+        justifyContent="space-between"
+        flexWrap="wrap"
+        sx={{ mt: 1.25, width: "100%", columnGap: 1, rowGap: 0.25 }}
+      >
+        <Stack direction="row" alignItems="baseline" spacing={0.4} sx={{ flexShrink: 0 }}>
           <Typography
             component="span"
             className="tnum"
@@ -157,7 +166,7 @@ export function RouteTile({ route, usesThisMonth, pulsing, onTap, onLongPress }:
         </Stack>
 
         {usesThisMonth > 0 ? (
-          <Typography variant="caption" color="text.disabled" sx={{ flexShrink: 0, pb: 0.25 }}>
+          <Typography variant="caption" color="text.disabled" noWrap sx={{ pb: 0.25 }}>
             {usesThisMonth}× this month
           </Typography>
         ) : null}

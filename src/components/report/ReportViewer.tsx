@@ -34,6 +34,7 @@ import {
   displayRows,
   fmtMiles,
   fmtMoney,
+  fmtRate,
   formatTimestamp,
   payloadToMeta,
   payloadToTrips,
@@ -95,7 +96,7 @@ const viewerStyles = (
 
 const CELL = {
   py: 1,
-  px: 1,
+  px: { xs: 0.625, sm: 1 },
   textAlign: "left",
   verticalAlign: "top",
   borderBottom: "1px solid",
@@ -323,7 +324,7 @@ export function ReportViewer() {
             <Stat label="Trips" value={String(totals.count)} />
             <Stat label="Total miles" value={fmtMiles(totals.miles)} />
             <Stat label="Reimbursement" value={fmtMoney(totals.money)} money />
-            {rate !== null ? <Stat label="Rate" value={`${fmtMoney(rate)}/mi`} /> : null}
+            {rate !== null ? <Stat label="Rate" value={`${fmtRate(rate)}/mi`} /> : null}
           </Stack>
 
           <Box sx={{ mt: 3, overflowX: "auto" }}>
@@ -380,7 +381,18 @@ export function ReportViewer() {
                   rows.map((r, i) => (
                     <Box component="tr" key={`${r.dateKey}-${i}`}>
                       <Box component="td" sx={{ ...CELL, whiteSpace: "nowrap" }}>
-                        {r.date}
+                        <Box
+                          component="span"
+                          sx={{ display: { xs: "none", sm: "inline" }, "@media print": { display: "inline" } }}
+                        >
+                          {r.date}
+                        </Box>
+                        <Box
+                          component="span"
+                          sx={{ display: { xs: "inline", sm: "none" }, "@media print": { display: "none" } }}
+                        >
+                          {r.dateShort}
+                        </Box>
                       </Box>
                       <Box component="td" sx={CELL}>
                         {r.from}

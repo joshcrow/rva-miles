@@ -34,6 +34,28 @@ export function defaultRateFor(key: string): number {
   return IRS_RATES[clamped] ?? IRS_RATES[LATEST_YEAR];
 }
 
+/**
+ * A $/mile rate as an exact decimal string — "0.70", "0.725", "0.655".
+ *
+ * Published IRS rates are quoted in whole or HALF cents (2026 is 72.5¢), so
+ * formatting a rate like ordinary money loses the half cent: 0.725 renders as
+ * "0.72" and the report stops reconciling — miles x the printed rate no longer
+ * equals the printed amount. Rates therefore keep up to 3 decimals, padded to
+ * a minimum of 2 so they still read as money.
+ */
+export function formatRateDigits(rate: number): string {
+  const safe = Number.isFinite(rate) ? rate : 0;
+  const text = (Math.round(safe * 1000) / 1000).toFixed(3);
+  // Always 3 decimals, minus a single trailing zero => 2dp normally, 3dp for
+  // a half cent. Never strips a second zero, so "$0.70" keeps its cents.
+  return text.endsWith("0") ? text.slice(0, -1) : text;
+}
+
+/** The same value with a leading `$`, for anywhere it's shown as money. */
+export function formatRate(rate: number): string {
+  return `$${formatRateDigits(rate)}`;
+}
+
 /** Convenience: default rate for today's date, used to seed new Settings. */
 export function currentDefaultRate(): number {
   return defaultRateFor(todayKey());

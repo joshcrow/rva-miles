@@ -19,7 +19,7 @@ import HistoryRoundedIcon from "@mui/icons-material/HistoryRounded";
 import RepeatRoundedIcon from "@mui/icons-material/RepeatRounded";
 import SatelliteAltRoundedIcon from "@mui/icons-material/SatelliteAltRounded";
 import type { Trip } from "@/types";
-import { fmtMiles, fmtMoney, placeLabel } from "./format";
+import { fmtMiles, fmtMoney, placeLabel, tripAmount } from "./format";
 
 const LONG_PRESS_MS = 500;
 const MOVE_CANCEL_PX = 10;
@@ -291,7 +291,7 @@ export function TripRow({ trip, revealed, onRevealChange, onTap, onLongPress, on
             className="tnum"
             component="p"
           >
-            {fmtMoney(trip.distanceMiles * trip.ratePerMile)}
+            {fmtMoney(tripAmount(trip))}
           </Typography>
         </Box>
       </Box>

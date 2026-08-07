@@ -1,47 +1,12 @@
 // Presentation helpers for the home screen. Number formatting is done by hand
 // (not toLocaleString) so server and client render byte-identical strings.
 
-import type { DateRange, Place, Trip } from "@/types";
+import type { DateRange, Place } from "@/types";
 import { formatKey } from "@/lib/dates";
 
-function group(intPart: string): string {
-  return intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-}
-
-function split(n: number, decimals: number): { sign: string; int: string; frac: string } {
-  const v = Number.isFinite(n) ? n : 0;
-  const [int, frac] = Math.abs(v).toFixed(decimals).split(".");
-  return { sign: v < 0 ? "-" : "", int: group(int), frac: frac ?? "" };
-}
-
-/** "214.6" — always one decimal, thousands-grouped. */
-export function fmtMiles(n: number): string {
-  const { sign, int, frac } = split(n, 1);
-  return `${sign}${int}.${frac}`;
-}
-
-/** "$150.22" — money is always rendered in success green by the caller. */
-export function fmtMoney(n: number): string {
-  const { sign, int, frac } = split(n, 2);
-  return `${sign}$${int}.${frac}`;
-}
-
-export interface Totals {
-  count: number;
-  miles: number;
-  money: number;
-}
-
-/** Money uses each trip's own captured rate — never a recomputed current rate. */
-export function totalsOf(trips: Trip[]): Totals {
-  let miles = 0;
-  let money = 0;
-  for (const t of trips) {
-    miles += t.distanceMiles;
-    money += t.distanceMiles * t.ratePerMile;
-  }
-  return { count: trips.length, miles, money };
-}
+// Miles/money arithmetic and formatting live in one place so this screen's
+// period total can never disagree with the report the user sends.
+export { fmtMiles, fmtMoney, tripAmount, totalsOf, type Totals } from "@/lib/money";
 
 export function placeLabel(p?: Place): string {
   if (!p) return "Unknown";

@@ -47,9 +47,9 @@ export function BottomNav() {
         // branch on scheme — palette.mode is frozen at the default scheme here.
         "@supports (backdrop-filter: blur(12px))": {
           backdropFilter: "blur(16px) saturate(180%)",
-          backgroundColor: "rgba(255,255,255,0.86)",
+          backgroundColor: "rgba(255,255,255,0.92)",
           ...t.applyStyles("dark", {
-            backgroundColor: "rgba(23,21,31,0.82)",
+            backgroundColor: "rgba(23,21,31,0.9)",
           }),
         },
         "@media print": { display: "none" },

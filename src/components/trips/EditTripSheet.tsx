@@ -19,6 +19,7 @@ import Typography from "@mui/material/Typography";
 import DeleteRoundedIcon from "@mui/icons-material/DeleteRounded";
 import type { Settings, Trip } from "@/types";
 import { addDaysKey, formatKey } from "@/lib/dates";
+import { formatRate } from "@/lib/rates";
 import Sheet from "./Sheet";
 import { applyTripEdit, formFromTrip, type TripEditForm } from "./tripEdits";
 
@@ -34,7 +35,7 @@ export interface EditTripSheetProps {
 }
 
 function fmtRate(n: number): string {
-  return `$${n.toFixed(3)}/mi`;
+  return `${formatRate(n)}/mi`;
 }
 
 export function EditTripSheet({ open, trip, today, settings, onClose, onSave, onDelete }: EditTripSheetProps) {

@@ -7,7 +7,7 @@ import Typography from "@mui/material/Typography";
 import ArrowRightAltRoundedIcon from "@mui/icons-material/ArrowRightAltRounded";
 import type { Trip } from "@/types";
 import { formatKey } from "@/lib/dates";
-import { fmtMiles, fmtMoney, placeLabel } from "./format";
+import { fmtMiles, fmtMoney, placeLabel, tripAmount } from "./format";
 
 export function RecentTrips({ trips, today }: { trips: Trip[]; today: string }) {
   if (trips.length === 0) return null;
@@ -87,7 +87,7 @@ export function RecentTrips({ trips, today }: { trips: Trip[]; today: string }) 
                 className="tnum"
                 component="p"
               >
-                {fmtMoney(trip.distanceMiles * trip.ratePerMile)}
+                {fmtMoney(tripAmount(trip))}
               </Typography>
             </Box>
           </Stack>

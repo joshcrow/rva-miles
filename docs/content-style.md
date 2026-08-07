@@ -93,7 +93,7 @@ Code-only words that must never surface: `payload`, `snapshot`, `segment`,
 - No parentheticals carrying technical qualifiers: "(GPS)", "(iOS)". A file extension the recipient needs — "Download Excel (.xlsx)" — is information, not a caveat, and stays.
 - Bottom-sheet subtitles are `noWrap`. Budget ~40 characters; a subtitle can never be the only place a money-safety fact is stated.
 - Placeholders are examples ("Dana Smith", "manager@example.com", "Client visit"), never restatements of the label.
-- Warmth is allowed in empty states and zero-stakes moments. "Nothing else to tap — just drive" earns its place; a tagline that only supplies rhythm does not.
+- Warmth is allowed in empty states and zero-stakes moments — but a line must still carry information. "Log a trip once, then repeat it with one tap." earns its place; a tagline that only supplies rhythm or restates the screen does not (the cockpit's deleted "Nothing else to tap — just drive" is the cautionary example).
 
 ## The two readers
 

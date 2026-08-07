@@ -10,7 +10,7 @@ import ScreenLockPortraitRounded from "@mui/icons-material/ScreenLockPortraitRou
 import StopRounded from "@mui/icons-material/StopRounded";
 import type { DriveStatus } from "@/types";
 import { brand, radii } from "@/theme/theme";
-import { STAGE_DIM, STAGE_FAINT, STAGE_FG, STAGE_FILL, STAGE_LINE } from "./DriveStage";
+import { STAGE_DIM, STAGE_FAINT, STAGE_FG } from "./DriveStage";
 import { formatAgo, formatElapsed, formatMiles } from "./driveFormat";
 
 interface DriveCockpitProps {
@@ -164,20 +164,6 @@ export function DriveCockpit({
             {accuracy != null ? `GPS accuracy ±${Math.round(accuracy)} m` : "Waiting for a fix"}
           </Typography>
         </Stack>
-
-        <Typography
-          variant="caption"
-          sx={{
-            color: STAGE_FAINT,
-            px: 1.5,
-            py: 0.5,
-            borderRadius: `${radii.pill}px`,
-            bgcolor: STAGE_FILL,
-            border: `1px solid ${STAGE_LINE}`,
-          }}
-        >
-          Nothing else to tap — just drive
-        </Typography>
 
         <ButtonBase
           onClick={onStop}

@@ -27,33 +27,66 @@ interface KvRow {
 // Demo mode
 // ---------------------------------------------------------------------------
 
-/** localStorage flag, set only by the `?demo=1` entry in AppShell. */
+/** localStorage flag, set only by the `?demo=…` entry in AppShell. */
 export const DEMO_FLAG_KEY = "rva-miles-demo";
 
-const REAL_DB_NAME = "rva-miles";
-const DEMO_DB_NAME = "rva-miles-demo";
+/**
+ * Which staged ledger a demo session is running. "clean" is the believable
+ * ten-week week; "messy" is the deliberately ugly fixture used to critique how
+ * the UI degrades. They are separate databases, so neither can see the other.
+ */
+export type DemoVariant = "clean" | "messy";
 
 /**
- * True when this browser is running the isolated demo ledger. SSR-safe (false
- * on the server), and false if localStorage is unreadable — the real ledger is
- * the safe default in both cases.
+ * The stored flag value that selects each variant. "1" is kept for "clean"
+ * because that is what every `?demo=1` link already handed out writes.
  */
-export function isDemoMode(): boolean {
-  if (typeof window === "undefined") return false;
+export const DEMO_FLAG_VALUES: Record<DemoVariant, string> = {
+  clean: "1",
+  messy: "messy",
+};
+
+const REAL_DB_NAME = "rva-miles";
+const DEMO_DB_NAMES: Record<DemoVariant, string> = {
+  clean: "rva-miles-demo",
+  messy: "rva-miles-demo-messy",
+};
+
+const VARIANT_BY_FLAG = new Map<string, DemoVariant>(
+  (Object.keys(DEMO_FLAG_VALUES) as DemoVariant[]).map((v) => [DEMO_FLAG_VALUES[v], v]),
+);
+
+/**
+ * The demo variant this browser is running, or null for the real ledger.
+ * SSR-safe (null on the server), and null if localStorage is unreadable or
+ * holds a value we don't recognise — the real ledger is the safe default in
+ * every one of those cases.
+ */
+export function demoVariant(): DemoVariant | null {
+  if (typeof window === "undefined") return null;
   try {
-    return window.localStorage.getItem(DEMO_FLAG_KEY) === "1";
+    const raw = window.localStorage.getItem(DEMO_FLAG_KEY);
+    return raw ? VARIANT_BY_FLAG.get(raw) ?? null : null;
   } catch {
-    return false;
+    return null;
   }
+}
+
+/** True for either demo variant: nothing outside db.ts needs to know which. */
+export function isDemoMode(): boolean {
+  return demoVariant() !== null;
 }
 
 /**
  * Chosen ONCE, at module init, so a page load talks to exactly one database
- * for its whole life — the demo ledger and the real one can never be open in
- * the same load, and no write can land in the wrong one. Entering or leaving
- * demo mode therefore reloads the page (see AppShell).
+ * for its whole life — the demo ledgers and the real one can never be open in
+ * the same load, and no write can land in the wrong one. Entering, leaving, or
+ * switching demo variant therefore reloads the page (see AppShell).
  */
-const DB_NAME = isDemoMode() ? DEMO_DB_NAME : REAL_DB_NAME;
+const DB_NAME = (() => {
+  const variant = demoVariant();
+  return variant ? DEMO_DB_NAMES[variant] : REAL_DB_NAME;
+})();
 
 class RvaMilesDb extends Dexie {
   trips!: Table<Trip, string>;

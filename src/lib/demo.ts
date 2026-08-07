@@ -15,7 +15,8 @@
 
 import type { GpsPoint, Place, Route, Settings, Trip } from "@/types";
 import { addDaysKey, keyToDate, todayKey, weekdayOfKey } from "./dates";
-import { db, isDemoMode, saveSettings } from "./db";
+import { db, demoVariant, saveSettings } from "./db";
+import { messyDataset } from "./demoMessy";
 import { encodeTrack } from "./geo";
 
 // ---------------------------------------------------------------------------
@@ -400,15 +401,18 @@ function demoSettings(today: string): Settings {
 // ---------------------------------------------------------------------------
 
 /**
- * Fills the demo database the first time it is opened. A no-op outside demo
- * mode, and a no-op once the demo ledger holds anything — so trips logged
- * while evaluating survive a reload instead of being overwritten by a reseed.
+ * Fills the demo database the first time it is opened, with the dataset the
+ * running variant asks for. A no-op outside demo mode, and a no-op once that
+ * variant's ledger holds anything — so trips logged while evaluating survive a
+ * reload instead of being overwritten by a reseed. The two variants are
+ * separate databases, so seeding one can never touch the other.
  */
 export async function ensureDemoSeed(): Promise<void> {
-  if (!isDemoMode()) return;
+  const variant = demoVariant();
+  if (!variant) return;
   if ((await db.trips.count()) > 0) return;
 
-  const data = demoDataset(todayKey());
+  const data = variant === "messy" ? messyDataset(todayKey()) : demoDataset(todayKey());
   await db.transaction("rw", db.trips, db.routes, db.kv, async () => {
     await db.trips.bulkPut(data.trips);
     await db.routes.bulkPut(data.routes);

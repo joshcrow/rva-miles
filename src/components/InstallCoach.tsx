@@ -12,6 +12,7 @@ import AddBoxOutlinedIcon from "@mui/icons-material/AddBoxOutlined";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import InstallMobileRoundedIcon from "@mui/icons-material/InstallMobileRounded";
 import IosShareRoundedIcon from "@mui/icons-material/IosShareRounded";
+import MoreVertRoundedIcon from "@mui/icons-material/MoreVertRounded";
 import { getSettings, saveSettings } from "@/lib/db";
 import { uiActions } from "@/stores/ui";
 import { brand, radii } from "@/theme/theme";
@@ -57,6 +58,11 @@ function isIos(): boolean {
   return /iPad|iPhone|iPod/.test(ua) || iPadOs;
 }
 
+function isAndroid(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return /Android/.test(navigator.userAgent);
+}
+
 // Browser-only facts read through useSyncExternalStore so the server snapshot
 // renders nothing and hydration never mismatches.
 const noopSubscribe = () => () => {};
@@ -88,6 +94,7 @@ export function InstallCoach({ compact = false }: InstallCoachProps) {
     () => true,
   );
   const ios = useSyncExternalStore(noopSubscribe, isIos, () => false);
+  const android = useSyncExternalStore(noopSubscribe, isAndroid, () => false);
   const canPrompt = useSyncExternalStore(subscribeInstall, hasPrompt, () => false);
 
   useEffect(() => {
@@ -135,7 +142,7 @@ export function InstallCoach({ compact = false }: InstallCoachProps) {
   }, []);
 
   if (!ready || dismissed || standalone) return null;
-  if (!ios && !canPrompt) return null;
+  if (!ios && !android && !canPrompt) return null;
 
   return (
     // A plain card. The one brand moment here is the icon tile below; the
@@ -182,7 +189,7 @@ export function InstallCoach({ compact = false }: InstallCoachProps) {
                 <Step
                   n={1}
                   icon={<IosShareRoundedIcon sx={{ fontSize: 18 }} />}
-                  text="Tap Share in Safari's toolbar"
+                  text="Tap Share in the toolbar"
                 />
                 <Step
                   n={2}
@@ -190,7 +197,7 @@ export function InstallCoach({ compact = false }: InstallCoachProps) {
                   text="Choose Add to Home Screen"
                 />
               </Stack>
-            ) : (
+            ) : canPrompt ? (
               <Button
                 variant="contained"
                 onClick={() => void install()}
@@ -198,6 +205,19 @@ export function InstallCoach({ compact = false }: InstallCoachProps) {
               >
                 Install app
               </Button>
+            ) : (
+              <Stack spacing={1} sx={{ mt: 1.5 }}>
+                <Step
+                  n={1}
+                  icon={<MoreVertRoundedIcon sx={{ fontSize: 18 }} />}
+                  text="Open your browser's menu"
+                />
+                <Step
+                  n={2}
+                  icon={<AddBoxOutlinedIcon sx={{ fontSize: 18 }} />}
+                  text="Choose Add to Home screen"
+                />
+              </Stack>
             )}
           </Box>
         </Stack>

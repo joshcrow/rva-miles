@@ -22,7 +22,8 @@ export interface SettingsDataApi {
   settings: Settings;
   tripCount: number;
   routeCount: number;
-  storageUsageBytes: number | null;
+  /** Sum of billed miles across the whole ledger */
+  totalMiles: number;
   /** null while the health check is in flight. */
   syncConfigured: boolean | null;
   refresh: () => Promise<void>;
@@ -35,7 +36,7 @@ export function useSettingsData(): SettingsDataApi {
   const [settings, setSettings] = useState<Settings>(fallbackSettings);
   const [tripCount, setTripCount] = useState(0);
   const [routeCount, setRouteCount] = useState(0);
-  const [storageUsageBytes, setStorageUsageBytes] = useState<number | null>(null);
+  const [totalMiles, setTotalMiles] = useState(0);
   const [syncConfigured, setSyncConfigured] = useState<boolean | null>(null);
   const alive = useRef(true);
 
@@ -56,22 +57,13 @@ export function useSettingsData(): SettingsDataApi {
       applySettings(s);
       setTripCount(trips.length);
       setRouteCount(routes.length);
+      setTotalMiles(trips.reduce((sum, t) => sum + t.distanceMiles, 0));
       setLoadError(null);
     } catch (err) {
       if (!alive.current) return;
       const message = "Couldn't read your settings.";
       setLoadError(message);
       uiActions.showError(err, "Couldn't read your settings.");
-    }
-
-    if (typeof navigator !== "undefined" && navigator.storage?.estimate) {
-      try {
-        const est = await navigator.storage.estimate();
-        if (alive.current) setStorageUsageBytes(typeof est.usage === "number" ? est.usage : null);
-      } catch {
-        // Storage estimate is a nicety, not a write — fail quiet, show a dash.
-        if (alive.current) setStorageUsageBytes(null);
-      }
     }
   }, [applySettings]);
 
@@ -121,7 +113,7 @@ export function useSettingsData(): SettingsDataApi {
     settings,
     tripCount,
     routeCount,
-    storageUsageBytes,
+    totalMiles,
     syncConfigured,
     refresh,
     patchSettings,

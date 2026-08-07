@@ -99,7 +99,7 @@ export function SettingsScreen() {
           settings={data.settings}
           tripCount={data.tripCount}
           routeCount={data.routeCount}
-          storageUsageBytes={data.storageUsageBytes}
+          totalMiles={data.totalMiles}
           onPatch={data.patchSettings}
           onRefresh={data.refresh}
         />

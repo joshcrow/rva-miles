@@ -14,6 +14,7 @@ import Typography from "@mui/material/Typography";
 import AutoAwesomeRoundedIcon from "@mui/icons-material/AutoAwesomeRounded";
 import type { Settings } from "@/types";
 import { defaultRateFor, formatRate } from "@/lib/rates";
+import { uiActions } from "@/stores/ui";
 import { parseRateInput } from "./settingsLogic";
 import { useSyncedField } from "./useSyncedField";
 
@@ -53,7 +54,12 @@ export function ProfileSection({ settings, today, onPatch }: ProfileSectionProps
   function useIrsRate() {
     setRateText(String(irsRate));
     if (irsRate !== settings.ratePerMile) void onPatch({ ratePerMile: irsRate });
+    uiActions.showSnack(`Rate set to ${formatRate(irsRate)}/mi`, "success");
   }
+
+  // No chip when the rate already matches — a visible control that would
+  // change nothing reads as broken.
+  const showIrsChip = parsedRate !== irsRate;
 
   return (
     <Card>
@@ -100,13 +106,15 @@ export function ProfileSection({ settings, today, onPatch }: ProfileSectionProps
               }
             />
             <Stack direction="row" alignItems="center" spacing={1} flexWrap="wrap" useFlexGap>
-              <Chip
-                size="small"
-                icon={<AutoAwesomeRoundedIcon sx={{ fontSize: 16 }} />}
-                label="Use current IRS rate"
-                onClick={useIrsRate}
-                variant="outlined"
-              />
+              {showIrsChip ? (
+                <Chip
+                  size="small"
+                  icon={<AutoAwesomeRoundedIcon sx={{ fontSize: 16 }} />}
+                  label="Use current IRS rate"
+                  onClick={useIrsRate}
+                  variant="outlined"
+                />
+              ) : null}
               <Typography variant="caption" color="text.secondary">
                 Rate changes only affect new trips.
               </Typography>

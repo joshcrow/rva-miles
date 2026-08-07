@@ -19,20 +19,21 @@ import CloudDownloadRoundedIcon from "@mui/icons-material/CloudDownloadRounded";
 import CloudUploadRoundedIcon from "@mui/icons-material/CloudUploadRounded";
 import ListAltRoundedIcon from "@mui/icons-material/ListAltRounded";
 import RouteRoundedIcon from "@mui/icons-material/RouteRounded";
-import SdStorageRoundedIcon from "@mui/icons-material/SdStorageRounded";
+import SpeedRoundedIcon from "@mui/icons-material/SpeedRounded";
 import type { MergeResult, Settings, Snapshot } from "@/types";
 import { db, exportSnapshot, importMerge, mergePlan, validateSnapshot } from "@/lib/db";
 import { todayKey } from "@/lib/dates";
+import { fmtMiles } from "@/lib/money";
 import { canShareFiles, downloadBlob, shareFiles } from "@/lib/share";
 import { uiActions } from "@/stores/ui";
 import ImportPreviewSheet from "./ImportPreviewSheet";
-import { daysAgoLabel, formatBytes, isBackupStale, mergePreviewText, mergeResultText } from "./settingsLogic";
+import { daysAgoLabel, isBackupStale, mergePreviewText, mergeResultText } from "./settingsLogic";
 
 export interface DataSectionProps {
   settings: Settings;
   tripCount: number;
   routeCount: number;
-  storageUsageBytes: number | null;
+  totalMiles: number;
   onPatch: (patch: Partial<Settings>) => Promise<void>;
   onRefresh: () => Promise<void>;
 }
@@ -63,7 +64,7 @@ export function DataSection({
   settings,
   tripCount,
   routeCount,
-  storageUsageBytes,
+  totalMiles,
   onPatch,
   onRefresh,
 }: DataSectionProps) {
@@ -166,9 +167,9 @@ export function DataSection({
               label={routeCount === 1 ? "route" : "routes"}
             />
             <Stat
-              icon={<SdStorageRoundedIcon />}
-              value={storageUsageBytes === null ? "—" : formatBytes(storageUsageBytes)}
-              label="on device"
+              icon={<SpeedRoundedIcon />}
+              value={fmtMiles(totalMiles)}
+              label="miles all time"
             />
           </Stack>
 

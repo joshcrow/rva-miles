@@ -4,7 +4,6 @@ import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { formatKey } from "@/lib/dates";
-import { brand } from "@/theme/theme";
 import { fmtMiles, pluralTrips, type Totals } from "./format";
 
 export interface HomeHeaderProps {
@@ -15,17 +14,9 @@ export interface HomeHeaderProps {
 export function HomeHeader({ today, todayTotals }: HomeHeaderProps) {
   return (
     <Box component="header" sx={{ pt: 2.5, pb: 0.5 }}>
-      <Typography
-        variant="overline"
-        component="p"
-        sx={{
-          display: "inline-block",
-          backgroundImage: brand.gradient,
-          WebkitBackgroundClip: "text",
-          backgroundClip: "text",
-          color: "transparent",
-        }}
-      >
+      {/* Plain brand colour, not a gradient wordmark: home already spends its
+          one brand-gradient moment on the pay-period chip below. */}
+      <Typography variant="overline" component="p" sx={{ color: "primary.main" }}>
         RVA Miles
       </Typography>
 

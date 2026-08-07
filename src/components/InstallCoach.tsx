@@ -14,7 +14,7 @@ import InstallMobileRoundedIcon from "@mui/icons-material/InstallMobileRounded";
 import IosShareRoundedIcon from "@mui/icons-material/IosShareRounded";
 import { getSettings, saveSettings } from "@/lib/db";
 import { uiActions } from "@/stores/ui";
-import { brand } from "@/theme/theme";
+import { brand, radii } from "@/theme/theme";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -138,15 +138,9 @@ export function InstallCoach({ compact = false }: InstallCoachProps) {
   if (!ios && !canPrompt) return null;
 
   return (
-    <Card
-      sx={{
-        overflow: "hidden",
-        position: "relative",
-        borderColor: "transparent",
-        backgroundImage: `linear-gradient(135deg, rgba(124,58,237,0.10), rgba(217,70,239,0.10))`,
-      }}
-    >
-      <Box sx={{ height: 3, background: brand.gradient }} />
+    // A plain card. The one brand moment here is the icon tile below; the
+    // gradient wash and gradient hairline this used to carry were two more.
+    <Card sx={{ overflow: "hidden", position: "relative" }}>
       <CardContent sx={{ pr: 6, py: compact ? 2 : 2.5 }}>
         <IconButton
           size="small"
@@ -163,7 +157,7 @@ export function InstallCoach({ compact = false }: InstallCoachProps) {
               width: 40,
               height: 40,
               flexShrink: 0,
-              borderRadius: 2.5,
+              borderRadius: `${radii.control}px`,
               display: "grid",
               placeItems: "center",
               background: brand.gradient,
@@ -200,7 +194,7 @@ export function InstallCoach({ compact = false }: InstallCoachProps) {
               <Button
                 variant="contained"
                 onClick={() => void install()}
-                sx={{ mt: 1.75, background: brand.gradient, color: "#fff" }}
+                sx={{ mt: 1.75 }}
               >
                 Install app
               </Button>
@@ -227,7 +221,7 @@ function Step({
         sx={{
           width: 22,
           height: 22,
-          borderRadius: "50%",
+          borderRadius: `${radii.pill}px`,
           display: "grid",
           placeItems: "center",
           flexShrink: 0,

@@ -4,7 +4,7 @@
 // mutation is optimistic with an UNDO snackbar (no confirmation dialogs), and
 // every storage failure is surfaced loudly through the ui store.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
@@ -20,6 +20,7 @@ import { archiveRoute, putRoute, putTrip, softDeleteTrip } from "@/lib/db";
 import { periodContaining, periodPresets } from "@/lib/periods";
 import { catchUpSuggestions, rankTiles } from "@/lib/routesLogic";
 import { uiActions } from "@/stores/ui";
+import { radii } from "@/theme/theme";
 import InstallCoach from "@/components/InstallCoach";
 import CatchUpBanner from "./CatchUpBanner";
 import CatchUpSheet from "./CatchUpSheet";
@@ -36,12 +37,43 @@ import RecentTrips from "./RecentTrips";
 import RouteMenuSheet from "./RouteMenuSheet";
 import RouteTile from "./RouteTile";
 import { fmtMiles, placeKey, placeLabel, totalsOf } from "./format";
-import { buildTripFromRoute, bumpRoute } from "./tripActions";
+import { CONTINUE_TRIP_PARAM, buildTripFromRoute, bumpRoute } from "./tripActions";
 import { useHomeData } from "./useHomeData";
 
 const MAX_TILES = 7;
-const PULSE_MS = 720;
+/** Slightly longer than RouteTile's 450ms pulse so the animation completes. */
+const PULSE_MS = 500;
 const SAVE_FAILED = "Couldn't save that trip — nothing was logged.";
+
+// --- "continue from here", handed over from the trips ledger ---------------
+// The URL is the external store: `?continue=<tripId>` is read through
+// useSyncExternalStore (so the server renders '' and hydration stays honest)
+// rather than copied into state by an effect.
+
+const continueListeners = new Set<() => void>();
+
+function subscribeContinueParam(onChange: () => void): () => void {
+  continueListeners.add(onChange);
+  window.addEventListener("popstate", onChange);
+  return () => {
+    continueListeners.delete(onChange);
+    window.removeEventListener("popstate", onChange);
+  };
+}
+
+function readContinueParam(): string {
+  return new URLSearchParams(window.location.search).get(CONTINUE_TRIP_PARAM) ?? "";
+}
+
+/** Strips the param — a reload or a back-navigation must not reopen the sheet. */
+function clearContinueParam(): void {
+  if (typeof window === "undefined") return;
+  const url = new URL(window.location.href);
+  if (!url.searchParams.has(CONTINUE_TRIP_PARAM)) return;
+  url.searchParams.delete(CONTINUE_TRIP_PARAM);
+  window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+  for (const listener of continueListeners) listener();
+}
 
 interface LoggedRef {
   trip: Trip;
@@ -75,7 +107,11 @@ export function HomeScreen() {
   const [editOpen, setEditOpen] = useState(false);
   const [newTripOpen, setNewTripOpen] = useState(false);
   const [newTripDate, setNewTripDate] = useState("");
+  const [newTripFrom, setNewTripFrom] = useState<Place | null>(null);
+  const [continuingFrom, setContinuingFrom] = useState("");
   const [newTripKey, setNewTripKey] = useState(0);
+
+  const continueId = useSyncExternalStore(subscribeContinueParam, readContinueParam, () => "");
 
   const toastSeq = useRef(0);
   const pulseTimer = useRef<number | null>(null);
@@ -310,30 +346,40 @@ export function HomeScreen() {
     [logFromRoute, undoLog],
   );
 
+  // `route` is null for a multi-leg stop journey: it's a one-off ledger entry,
+  // never a repeatable tile, so nothing route-shaped is written or undone.
   const submitNewTrip = useCallback(
     async ({ trip, route, prevRoute }: NewTripPayload): Promise<boolean> => {
       upsertTrip(trip);
-      upsertRoute(route);
+      if (route) upsertRoute(route);
       try {
         await putTrip(trip);
-        await putRoute(route);
+        if (route) await putRoute(route);
       } catch (err) {
         uiActions.showError(err, SAVE_FAILED);
         await refresh();
         return false;
       }
 
-      uiActions.showUndo("Logged & saved as a tile", () => {
+      const message = route
+        ? "Logged & saved as a tile"
+        : `Logged ${fmtMiles(trip.distanceMiles)} mi`;
+
+      uiActions.showUndo(message, () => {
         void (async () => {
           dropTrip(trip.id);
-          if (prevRoute) upsertRoute(prevRoute);
-          else dropRoute(route.id);
+          if (route) {
+            if (prevRoute) upsertRoute(prevRoute);
+            else dropRoute(route.id);
+          }
           try {
             const now = Date.now();
             await softDeleteTrip(trip.id);
-            await putRoute(
-              prevRoute ? { ...prevRoute, updatedAt: now } : { ...route, deletedAt: now, updatedAt: now },
-            );
+            if (route) {
+              await putRoute(
+                prevRoute ? { ...prevRoute, updatedAt: now } : { ...route, deletedAt: now, updatedAt: now },
+              );
+            }
             uiActions.showSnack("Trip removed", "info");
           } catch (err) {
             uiActions.showError(err, "Couldn't undo that — your trip is still logged.");
@@ -396,12 +442,46 @@ export function HomeScreen() {
 
   const openNewTrip = useCallback(
     (dateKey?: string) => {
+      clearContinueParam();
       setNewTripDate(dateKey ?? today);
+      setNewTripFrom(null);
+      setContinuingFrom("");
       setNewTripKey((k) => k + 1);
       setNewTripOpen(true);
     },
     [today],
   );
+
+  /**
+   * "Drove to Crozet this morning, carrying on to the work site this
+   * afternoon" — the second drive is its own entry starting where the first
+   * one ended, on the same day. Two clean records beat one edited one.
+   */
+  const continueFromTrip = useCallback((trip: Trip) => {
+    clearContinueParam();
+    setNewTripDate(trip.dateKey);
+    setNewTripFrom(trip.to);
+    setContinuingFrom(placeLabel(trip.to));
+    setNewTripKey((k) => k + 1);
+    setNewTripOpen(true);
+  }, []);
+
+  // The ledger's quick action hands a trip over by navigating to
+  // /?continue=<id>. That param IS the open state for this one case — derived,
+  // never copied into local state — so there's no effect racing the ledger
+  // load, and closing the sheet strips the param instead of leaving a URL that
+  // reopens itself on reload.
+  const continueTrip = useMemo(
+    () => (ready && continueId ? (trips.find((t) => t.id === continueId) ?? null) : null),
+    [ready, continueId, trips],
+  );
+
+  // Deleted between screens, or a hand-edited URL: say so and drop the param.
+  useEffect(() => {
+    if (!ready || !continueId || continueTrip) return;
+    uiActions.showSnack("Couldn't find that trip to continue from.", "warning");
+    clearContinueParam();
+  }, [ready, continueId, continueTrip]);
 
   const openRouteMenu = useCallback((route: Route) => {
     setMenuRouteId(route.id);
@@ -450,7 +530,7 @@ export function HomeScreen() {
               textAlign: "center",
               px: 2.5,
               py: 4,
-              borderRadius: 4,
+              borderRadius: `${radii.card}px`,
               border: "1.5px dashed",
               borderColor: "rgba(124,58,237,0.35)",
             }}
@@ -516,7 +596,7 @@ export function HomeScreen() {
 
         <InstallCoach compact />
 
-        <RecentTrips trips={trips.slice(0, 3)} today={today} />
+        <RecentTrips trips={trips.slice(0, 3)} today={today} onContinue={continueFromTrip} />
       </Stack>
 
       <LoggedToast state={toast} onClose={() => setToast(null)} />
@@ -533,11 +613,16 @@ export function HomeScreen() {
       />
 
       <NewTripSheet
-        key={newTripKey}
-        open={newTripOpen}
-        onClose={() => setNewTripOpen(false)}
+        key={continueTrip ? `continue-${continueTrip.id}` : newTripKey}
+        open={newTripOpen || Boolean(continueTrip)}
+        onClose={() => {
+          setNewTripOpen(false);
+          clearContinueParam();
+        }}
         today={today}
-        initialDateKey={newTripDate || today}
+        initialDateKey={(continueTrip ? continueTrip.dateKey : newTripDate) || today}
+        initialFrom={continueTrip ? continueTrip.to : newTripFrom}
+        continuingFrom={continueTrip ? placeLabel(continueTrip.to) : continuingFrom}
         settings={settings}
         routes={routes}
         topOrigins={topOrigins}

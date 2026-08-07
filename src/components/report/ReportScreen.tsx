@@ -18,7 +18,6 @@ import { periodPresets } from "@/lib/periods";
 import { buildXlsx, reportFilename } from "@/lib/exporters";
 import { reportUrl } from "@/lib/reportlink";
 import { canShareFiles, shareFiles } from "@/lib/share";
-import { brand } from "@/theme/theme";
 import { uiActions } from "@/stores/ui";
 import EmptyRange from "./EmptyRange";
 import PeriodPicker from "./PeriodPicker";
@@ -190,17 +189,7 @@ export function ReportScreen() {
     <>
       <Stack spacing={2.5} sx={{ px: 2.5, pt: 2.5, pb: 3 }}>
         <Box component="header">
-          <Typography
-            variant="overline"
-            component="p"
-            sx={{
-              display: "inline-block",
-              backgroundImage: brand.gradient,
-              WebkitBackgroundClip: "text",
-              backgroundClip: "text",
-              color: "transparent",
-            }}
-          >
+          <Typography variant="overline" component="p" sx={{ color: "primary.main" }}>
             RVA Miles
           </Typography>
           <Typography variant="h3" component="h1" sx={{ mt: 0.25 }}>

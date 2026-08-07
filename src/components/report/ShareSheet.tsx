@@ -28,6 +28,7 @@ import {
 } from "@/lib/exporters";
 import { downloadBlob, mailtoUrl } from "@/lib/share";
 import { uiActions } from "@/stores/ui";
+import { radii } from "@/theme/theme";
 import { copyText } from "./clipboard";
 import { fmtMiles, fmtMoney, mailBody, rangeLabelShort, type ReportTotals } from "./reportData";
 
@@ -150,7 +151,7 @@ export function ShareSheet({
         sx={{
           width: 40,
           height: 4,
-          borderRadius: 999,
+          borderRadius: `${radii.pill}px`,
           bgcolor: "divider",
           mx: "auto",
           mt: 1.25,

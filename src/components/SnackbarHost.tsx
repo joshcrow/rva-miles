@@ -61,7 +61,9 @@ export function SnackbarHost() {
             clear();
           }
         }}
-        sx={{ width: "100%", boxShadow: 8, alignItems: "center" }}
+        // Radius and the raised shadow both come from the theme (elevation=6
+        // resolves to elevation.raised) — nothing to restate here.
+        sx={{ width: "100%", alignItems: "center" }}
         action={
           <>
             {snack?.actionLabel ? (

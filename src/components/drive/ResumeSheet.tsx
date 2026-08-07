@@ -7,7 +7,7 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import HistoryRounded from "@mui/icons-material/HistoryRounded";
 import type { ActiveDrive } from "@/types";
-import { brand } from "@/theme/theme";
+import { radii } from "@/theme/theme";
 import { formatClock, formatMiles } from "./driveFormat";
 
 interface ResumeSheetProps {
@@ -45,7 +45,7 @@ export function ResumeSheet({
           sx={{
             width: 40,
             height: 4,
-            borderRadius: 999,
+            borderRadius: `${radii.pill}px`,
             bgcolor: "divider",
             mx: "auto",
             mb: 2.5,
@@ -57,11 +57,11 @@ export function ResumeSheet({
             sx={{
               width: 44,
               height: 44,
-              borderRadius: "14px",
+              borderRadius: `${radii.control}px`,
               display: "grid",
               placeItems: "center",
-              background: brand.gradient,
-              color: "#FFFFFF",
+              bgcolor: "action.selected",
+              color: "primary.main",
               flexShrink: 0,
             }}
           >
@@ -79,16 +79,10 @@ export function ResumeSheet({
         <Stack spacing={1.25}>
           <Button
             size="large"
+            variant="contained"
             onClick={onResume}
             disabled={busy}
-            sx={{
-              minHeight: 56,
-              background: brand.gradient,
-              color: "#FFFFFF",
-              fontSize: "1rem",
-              fontWeight: 700,
-              boxShadow: "0 10px 28px rgba(124,58,237,0.32)",
-            }}
+            sx={{ minHeight: 56, fontSize: "1rem", fontWeight: 700 }}
           >
             Resume tracking
           </Button>

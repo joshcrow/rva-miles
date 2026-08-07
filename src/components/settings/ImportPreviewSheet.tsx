@@ -15,7 +15,7 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import UploadFileRoundedIcon from "@mui/icons-material/UploadFileRounded";
-import { brand } from "@/theme/theme";
+import { radii } from "@/theme/theme";
 
 export interface ImportPreviewSheetProps {
   open: boolean;
@@ -52,7 +52,17 @@ export function ImportPreviewSheet({
         paper: { sx: { maxWidth: 480, mx: "auto", width: "100%" } },
       }}
     >
-      <Box sx={{ width: 40, height: 4, borderRadius: 999, bgcolor: "divider", mx: "auto", mt: 1.25, mb: 0.5 }} />
+      <Box
+        sx={{
+          width: 40,
+          height: 4,
+          borderRadius: `${radii.pill}px`,
+          bgcolor: "divider",
+          mx: "auto",
+          mt: 1.25,
+          mb: 0.5,
+        }}
+      />
 
       <Stack direction="row" alignItems="flex-start" spacing={1.25} sx={{ px: 2.5, pt: 1, pb: 1.5 }}>
         <Box
@@ -60,11 +70,11 @@ export function ImportPreviewSheet({
             width: 40,
             height: 40,
             flexShrink: 0,
-            borderRadius: 2.5,
+            borderRadius: `${radii.control}px`,
             display: "grid",
             placeItems: "center",
-            background: brand.gradient,
-            color: "#fff",
+            bgcolor: "action.selected",
+            color: "primary.main",
           }}
         >
           <UploadFileRoundedIcon fontSize="small" />
@@ -91,7 +101,6 @@ export function ImportPreviewSheet({
           variant="contained"
           disabled={importing}
           onClick={() => onConfirm(backupFirst)}
-          sx={{ backgroundImage: brand.gradient, color: "#fff" }}
         >
           {importing ? "Importing…" : "Import"}
         </Button>

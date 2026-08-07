@@ -56,11 +56,11 @@ export function TripList({
             </Box>
           </Typography>
 
+          {/* The row owns its own radius (it clips the swipe actions behind
+              it) — only the hairline is added here. */}
           <Stack
             spacing={0.75}
-            sx={{
-              "& > div": { borderRadius: 3, border: "1px solid", borderColor: "divider" },
-            }}
+            sx={{ "& > div": { border: "1px solid", borderColor: "divider" } }}
           >
             {group.trips.map((trip) => (
               <TripRow

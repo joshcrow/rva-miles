@@ -11,7 +11,7 @@ import ArrowBackRounded from "@mui/icons-material/ArrowBackRounded";
 import DirectionsCarRounded from "@mui/icons-material/DirectionsCarRounded";
 import HistoryRounded from "@mui/icons-material/HistoryRounded";
 import ScreenLockPortraitRounded from "@mui/icons-material/ScreenLockPortraitRounded";
-import { brand } from "@/theme/theme";
+import { brand, radii } from "@/theme/theme";
 import { STAGE_BG, STAGE_DIM, STAGE_FAINT, STAGE_FG, STAGE_FILL, STAGE_LINE } from "./DriveStage";
 import { formatMiles } from "./driveFormat";
 
@@ -60,7 +60,7 @@ export function StartPanel({
             px: 2,
             py: 1.25,
             width: "100%",
-            borderRadius: "16px",
+            borderRadius: `${radii.card}px`,
             justifyContent: "flex-start",
             gap: 1.25,
             textAlign: "left",
@@ -83,26 +83,9 @@ export function StartPanel({
 
       <Stack sx={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 3.5 }}>
         <Box sx={{ position: "relative", display: "grid", placeItems: "center" }}>
-          {/* Breathing halo — pure decoration, sits behind the disc. */}
-          <Box
-            aria-hidden
-            sx={{
-              position: "absolute",
-              width: DISC_SIZE,
-              height: DISC_SIZE,
-              borderRadius: "50%",
-              background: brand.gradient,
-              filter: "blur(2px)",
-              opacity: 0.32,
-              "@keyframes driveHalo": {
-                "0%": { transform: "scale(1)", opacity: 0.30 },
-                "70%": { transform: "scale(1.28)", opacity: 0 },
-                "100%": { transform: "scale(1.28)", opacity: 0 },
-              },
-              animation: acquiring ? "none" : "driveHalo 2.8s ease-out infinite",
-              "@media (prefers-reduced-motion: reduce)": { animation: "none" },
-            }}
-          />
+          {/* The app's one sanctioned glow: a gradient ring with a single
+              restrained bloom under it. No breathing halo, no inner wash —
+              the ring reads as a physical button, not a light source. */}
           <ButtonBase
             onClick={onStart}
             disabled={acquiring}
@@ -112,9 +95,9 @@ export function StartPanel({
               width: DISC_SIZE,
               height: DISC_SIZE,
               p: "5px",
-              borderRadius: "50%",
+              borderRadius: `${radii.pill}px`,
               background: brand.gradient,
-              boxShadow: "0 18px 60px rgba(124,58,237,0.45)",
+              boxShadow: "0 10px 28px rgba(124,58,237,0.22)",
               transition: "transform .16s ease",
               "&:active": { transform: "scale(0.97)" },
               "&.Mui-disabled": { opacity: 1 },
@@ -124,28 +107,19 @@ export function StartPanel({
               sx={{
                 width: "100%",
                 height: "100%",
-                borderRadius: "50%",
+                borderRadius: `${radii.pill}px`,
                 bgcolor: STAGE_BG,
                 display: "grid",
                 placeItems: "center",
-                background: `radial-gradient(120% 120% at 50% 22%, rgba(124,58,237,0.30), ${STAGE_BG} 68%)`,
               }}
             >
               {acquiring ? (
                 <Stack alignItems="center" spacing={1.5}>
                   <CircularProgress size={30} thickness={4} sx={{ color: "#E879F9" }} />
+                  {/* The spinner above already says "working" — the text
+                      does not need to pulse as well. */}
                   <Typography
-                    sx={{
-                      fontSize: "1.0625rem",
-                      fontWeight: 700,
-                      color: STAGE_FG,
-                      "@keyframes driveSeek": {
-                        "0%, 100%": { opacity: 1 },
-                        "50%": { opacity: 0.45 },
-                      },
-                      animation: "driveSeek 1.4s ease-in-out infinite",
-                      "@media (prefers-reduced-motion: reduce)": { animation: "none" },
-                    }}
+                    sx={{ fontSize: "1.0625rem", fontWeight: 700, color: STAGE_FG }}
                   >
                     Finding GPS…
                   </Typography>
@@ -199,7 +173,7 @@ export function StartPanel({
         spacing={1.25}
         sx={{
           p: 2,
-          borderRadius: "16px",
+          borderRadius: `${radii.card}px`,
           bgcolor: STAGE_FILL,
           border: `1px solid ${STAGE_LINE}`,
           alignItems: "flex-start",

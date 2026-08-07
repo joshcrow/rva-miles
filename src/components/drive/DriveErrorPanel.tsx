@@ -7,7 +7,7 @@ import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import LocationOffRounded from "@mui/icons-material/LocationOffRounded";
-import { brand } from "@/theme/theme";
+import { brand, radii } from "@/theme/theme";
 import { STAGE_DIM, STAGE_FAINT, STAGE_FG, STAGE_FILL, STAGE_LINE } from "./DriveStage";
 
 interface DriveErrorPanelProps {
@@ -43,7 +43,7 @@ export function DriveErrorPanel({ message, onRetry }: DriveErrorPanelProps) {
           sx={{
             width: 84,
             height: 84,
-            borderRadius: "50%",
+            borderRadius: `${radii.pill}px`,
             display: "grid",
             placeItems: "center",
             bgcolor: "rgba(248,113,113,0.12)",
@@ -65,7 +65,12 @@ export function DriveErrorPanel({ message, onRetry }: DriveErrorPanelProps) {
 
       <Stack
         spacing={1.25}
-        sx={{ p: 2.5, borderRadius: "16px", bgcolor: STAGE_FILL, border: `1px solid ${STAGE_LINE}` }}
+        sx={{
+          p: 2.5,
+          borderRadius: `${radii.card}px`,
+          bgcolor: STAGE_FILL,
+          border: `1px solid ${STAGE_LINE}`,
+        }}
       >
         <Typography variant="overline" sx={{ color: STAGE_FAINT }}>
           {isIos ? "Turn location back on (iOS)" : "Turn location back on"}
@@ -77,7 +82,7 @@ export function DriveErrorPanel({ message, onRetry }: DriveErrorPanelProps) {
                 mt: "1px",
                 minWidth: 20,
                 height: 20,
-                borderRadius: "50%",
+                borderRadius: `${radii.pill}px`,
                 display: "grid",
                 placeItems: "center",
                 bgcolor: "rgba(196,165,251,0.16)",
@@ -99,13 +104,15 @@ export function DriveErrorPanel({ message, onRetry }: DriveErrorPanelProps) {
         <Button
           size="large"
           onClick={onRetry}
+          // Solid brand violet rather than the gradient + bloom this used to
+          // carry: an error screen is not the place for the app's one glow.
           sx={{
             minHeight: 56,
-            background: brand.gradient,
+            bgcolor: brand.violet,
             color: "#FFFFFF",
             fontSize: "1rem",
             fontWeight: 700,
-            boxShadow: "0 12px 32px rgba(124,58,237,0.40)",
+            "&:hover": { bgcolor: "#6D28D9" },
           }}
         >
           Try again

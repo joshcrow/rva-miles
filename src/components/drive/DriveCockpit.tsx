@@ -9,7 +9,7 @@ import GpsFixedRounded from "@mui/icons-material/GpsFixedRounded";
 import ScreenLockPortraitRounded from "@mui/icons-material/ScreenLockPortraitRounded";
 import StopRounded from "@mui/icons-material/StopRounded";
 import type { DriveStatus } from "@/types";
-import { brand } from "@/theme/theme";
+import { brand, radii } from "@/theme/theme";
 import { STAGE_DIM, STAGE_FAINT, STAGE_FG, STAGE_FILL, STAGE_LINE } from "./DriveStage";
 import { formatAgo, formatElapsed, formatMiles } from "./driveFormat";
 
@@ -77,7 +77,7 @@ export function DriveCockpit({
           sx={{
             px: 1.75,
             py: 0.75,
-            borderRadius: 999,
+            borderRadius: `${radii.pill}px`,
             border: `1px solid ${color}59`,
             bgcolor: `${color}1F`,
           }}
@@ -87,8 +87,10 @@ export function DriveCockpit({
             sx={{
               width: 9,
               height: 9,
-              borderRadius: "50%",
+              borderRadius: `${radii.pill}px`,
               bgcolor: color,
+              // Kept: this pulse is the liveness signal, not decoration —
+              // it stops the moment the fix goes stale.
               "@keyframes drivePing": {
                 "0%, 100%": { opacity: 1, transform: "scale(1)" },
                 "50%": { opacity: 0.35, transform: "scale(0.82)" },
@@ -131,7 +133,6 @@ export function DriveCockpit({
             fontVariantNumeric: "tabular-nums",
             fontFeatureSettings: '"tnum" 1',
             color: STAGE_FG,
-            textShadow: "0 8px 44px rgba(124,58,237,0.35)",
           }}
         >
           {formatMiles(distanceMiles)}
@@ -170,7 +171,7 @@ export function DriveCockpit({
             color: STAGE_FAINT,
             px: 1.5,
             py: 0.5,
-            borderRadius: 999,
+            borderRadius: `${radii.pill}px`,
             bgcolor: STAGE_FILL,
             border: `1px solid ${STAGE_LINE}`,
           }}
@@ -182,16 +183,19 @@ export function DriveCockpit({
           onClick={onStop}
           disabled={stopping}
           aria-label="Stop and save this drive"
+          // Solid, not gradient: the recording screen spends its whole brand
+          // budget on being legible at a glance. Fixed hex (not palette) so
+          // it is identical whichever scheme the app is in — the stage is
+          // always near-black.
           sx={{
             width: "100%",
             minHeight: 78,
-            borderRadius: "22px",
+            borderRadius: `${radii.control}px`,
             gap: 1.25,
-            background: brand.gradient,
+            bgcolor: brand.violet,
             color: "#FFFFFF",
-            boxShadow: "0 16px 44px rgba(124,58,237,0.45)",
-            transition: "transform .16s ease",
-            "&:active": { transform: "scale(0.985)" },
+            transition: "transform .16s ease, background-color .16s ease",
+            "&:active": { transform: "scale(0.985)", bgcolor: "#6D28D9" },
             "&.Mui-disabled": { opacity: 0.6, color: "#FFFFFF" },
           }}
         >

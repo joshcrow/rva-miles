@@ -4,23 +4,13 @@ import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
-import { brand } from "@/theme/theme";
 
 export function AboutSection() {
   return (
     <Card>
       <CardContent>
         <Stack spacing={1.5}>
-          <Typography
-            variant="overline"
-            sx={{
-              display: "inline-block",
-              backgroundImage: brand.gradient,
-              WebkitBackgroundClip: "text",
-              backgroundClip: "text",
-              color: "transparent",
-            }}
-          >
+          <Typography variant="overline" sx={{ color: "primary.main" }}>
             RVA Miles
           </Typography>
           <Typography variant="body2" color="text.secondary">

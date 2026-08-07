@@ -7,8 +7,9 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
 import type { DateRange } from "@/types";
-import { brand } from "@/theme/theme";
+import { brand, radii } from "@/theme/theme";
 import { fmtMiles, fmtMoney, rangeLabel, type Totals } from "./format";
+import { restingSurface } from "./surfaces";
 
 export interface PeriodChipProps {
   range: DateRange;
@@ -16,6 +17,10 @@ export interface PeriodChipProps {
   /** True when the user has a pay schedule; otherwise this is the month view. */
   hasSchedule: boolean;
 }
+
+/** Width of the gradient hairline; the inner radius is derived so the two
+ *  corners stay concentric if the card token ever moves. */
+const EDGE = 1.5;
 
 export function PeriodChip({ range, totals, hasSchedule }: PeriodChipProps) {
   const label = hasSchedule ? "This pay period" : "This month";
@@ -27,21 +32,22 @@ export function PeriodChip({ range, totals, hasSchedule }: PeriodChipProps) {
       aria-label={`${label}, ${rangeLabel(range)}. ${fmtMiles(totals.miles)} miles, ${fmtMoney(
         totals.money,
       )}. Open report.`}
-      sx={{
+      sx={(t) => ({
         display: "block",
         width: "100%",
         textAlign: "left",
-        borderRadius: "18px",
-        p: "1.5px",
+        borderRadius: `${radii.card}px`,
+        // Home's single brand-gradient moment: a 1.5px hairline border.
+        p: `${EDGE}px`,
         backgroundImage: brand.gradient,
-        boxShadow: 2,
+        ...restingSurface(t),
         transition: "transform 140ms ease",
         "&:active": { transform: "scale(0.985)" },
-      }}
+      })}
     >
       <Box
         sx={{
-          borderRadius: "16.5px",
+          borderRadius: `${radii.card - EDGE}px`,
           bgcolor: "background.paper",
           px: 2,
           py: 1.75,

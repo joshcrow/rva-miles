@@ -13,6 +13,7 @@
 import type { DateRange, Place, ReportPayload, Settings, Trip } from "@/types";
 import { isKeyInRange } from "@/lib/dates";
 import type { ReportMeta } from "@/lib/exporters";
+import { routeText } from "@/lib/legs";
 import { formatRate } from "@/lib/rates";
 import { fmtMiles, fmtMoney, roundTo, tripAmount } from "@/lib/money";
 
@@ -195,6 +196,13 @@ export function buildMeta(range: DateRange, settings: Settings): ReportMeta {
  * Miles/rate go into the link at full-ish precision (3dp / 4dp) rather than
  * display precision, so the viewer's totals reconcile to the cent with the
  * sender's. gzip makes the extra digits free.
+ *
+ * ReportPayload stays schema v:1 — it has no `legs` field — so a multi-leg
+ * trip's via stop is folded into the flat `to` string HERE, once, at build
+ * time ("Charlottesville site (via Crozet)"). Everything downstream that
+ * reads a payload (the /r viewer's table, its CSV/XLSX/TSV exports, its
+ * share text) already just prints `to` as-is, so they inherit the via text
+ * for free with no changes needed on their end.
  */
 export function buildPayload(trips: Trip[], meta: ReportMeta, generatedAt: number): ReportPayload {
   return {
@@ -207,7 +215,7 @@ export function buildPayload(trips: Trip[], meta: ReportMeta, generatedAt: numbe
     trips: sortForReport(trips).map((t) => ({
       dateKey: t.dateKey,
       from: placeLabel(t.from),
-      to: placeLabel(t.to),
+      to: routeText(t),
       miles: roundTo(t.distanceMiles, 3),
       rate: roundTo(t.ratePerMile, 4),
       purpose: t.purpose?.trim() || undefined,
@@ -306,7 +314,9 @@ export function displayRows(trips: Trip[]): DisplayRow[] {
     date: formatKeyFull(t.dateKey),
     dateShort: formatKeyShort(t.dateKey),
     from: placeLabel(t.from),
-    to: placeLabel(t.to),
+    // Identical to placeLabel(t.to) for a legless trip; folds in "(via …)"
+    // when the trip carries multi-leg data (mirrors buildPayload/exporters).
+    to: routeText(t),
     purpose: t.purpose ?? "",
     miles: fmtMiles(t.distanceMiles),
     rate: fmtRate(t.ratePerMile),

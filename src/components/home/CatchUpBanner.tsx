@@ -6,6 +6,7 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
 import EventRepeatRoundedIcon from "@mui/icons-material/EventRepeatRounded";
+import { radii } from "@/theme/theme";
 
 export interface CatchUpBannerProps {
   count: number;
@@ -19,12 +20,14 @@ export function CatchUpBanner({ count, onOpen }: CatchUpBannerProps) {
       sx={{
         width: "100%",
         textAlign: "left",
-        borderRadius: 4,
+        borderRadius: `${radii.card}px`,
         px: 2,
         py: 1.75,
         border: "1px solid",
         borderColor: "rgba(124,58,237,0.28)",
-        backgroundImage: "linear-gradient(135deg, rgba(124,58,237,0.10), rgba(217,70,239,0.09))",
+        // A flat brand tint, not a gradient wash — the banner is a prompt, not
+        // the screen's one brand moment (that's the pay-period chip).
+        bgcolor: "action.hover",
         transition: "transform 140ms ease",
         "&:active": { transform: "scale(0.985)" },
       }}
@@ -35,7 +38,7 @@ export function CatchUpBanner({ count, onOpen }: CatchUpBannerProps) {
             width: 38,
             height: 38,
             flexShrink: 0,
-            borderRadius: 2.5,
+            borderRadius: `${radii.control}px`,
             display: "grid",
             placeItems: "center",
             bgcolor: "background.paper",

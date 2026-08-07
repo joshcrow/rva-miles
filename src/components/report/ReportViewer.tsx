@@ -24,7 +24,7 @@ import type { ReportPayload } from "@/types";
 import { buildCsv, buildXlsx, reportFilename } from "@/lib/exporters";
 import { decodeReport } from "@/lib/reportlink";
 import { downloadBlob } from "@/lib/share";
-import { brand } from "@/theme/theme";
+import { brand, radii } from "@/theme/theme";
 import { uiActions } from "@/stores/ui";
 import { copyText } from "./clipboard";
 import {
@@ -189,12 +189,13 @@ export function ReportViewer() {
               width: 68,
               height: 68,
               mx: "auto",
-              borderRadius: "20px",
+              borderRadius: `${radii.card}px`,
               display: "grid",
               placeItems: "center",
-              backgroundImage: brand.gradient,
-              color: "#fff",
-              boxShadow: 6,
+              bgcolor: "action.hover",
+              border: "1px solid",
+              borderColor: "divider",
+              color: "text.secondary",
             }}
           >
             <LinkOffRoundedIcon sx={{ fontSize: 32 }} />
@@ -271,13 +272,10 @@ export function ReportViewer() {
               variant="overline"
               component="p"
               className="rva-brand"
-              sx={{
-                display: "inline-block",
-                backgroundImage: brand.gradient,
-                WebkitBackgroundClip: "text",
-                backgroundClip: "text",
-                color: "transparent",
-              }}
+              // Flat brand violet. This page's single gradient is the
+              // Download Excel CTA at the bottom; the print rules below still
+              // force .rva-brand to solid black on paper.
+              sx={{ display: "inline-block", color: "primary.main" }}
             >
               Mileage reimbursement
             </Typography>
@@ -314,7 +312,7 @@ export function ReportViewer() {
               mt: 3,
               py: 2,
               px: { xs: 2, sm: 2.5 },
-              borderRadius: 3,
+              borderRadius: `${radii.card}px`,
               border: "1px solid",
               borderColor: "divider",
               gap: { xs: 2.5, sm: 6 },

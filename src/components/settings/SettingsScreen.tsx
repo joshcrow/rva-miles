@@ -14,7 +14,6 @@ import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
 import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
 import InstallCoach from "@/components/InstallCoach";
 import { todayKey } from "@/lib/dates";
-import { brand } from "@/theme/theme";
 import AboutSection from "./AboutSection";
 import AppearanceSection from "./AppearanceSection";
 import DataSection from "./DataSection";
@@ -53,17 +52,7 @@ export function SettingsScreen() {
   return (
     <Stack spacing={3} sx={{ px: 2.5, pt: 2.5, pb: 4 }}>
       <Box component="header">
-        <Typography
-          variant="overline"
-          component="p"
-          sx={{
-            display: "inline-block",
-            backgroundImage: brand.gradient,
-            WebkitBackgroundClip: "text",
-            backgroundClip: "text",
-            color: "transparent",
-          }}
-        >
+        <Typography variant="overline" component="p" sx={{ color: "primary.main" }}>
           RVA Miles
         </Typography>
         <Typography variant="h3" component="h1" sx={{ mt: 0.25 }}>

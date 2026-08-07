@@ -11,6 +11,7 @@ import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import type { DateRange, PeriodPreset } from "@/types";
+import { radii } from "@/theme/theme";
 import { CUSTOM_PRESET_LABEL, isDateKey, rangeLabelShort } from "./reportData";
 
 export interface PeriodPickerProps {
@@ -62,9 +63,9 @@ export function PeriodPicker({
                 flexShrink: 0,
                 px: 0.5,
                 fontWeight: 600,
-                ...(selected
-                  ? { boxShadow: 2 }
-                  : { borderColor: "divider", color: "text.secondary" }),
+                // Filled-vs-outlined already carries selection; a shadow on
+                // one chip in a scrolling row just looked lumpy.
+                ...(selected ? null : { borderColor: "divider", color: "text.secondary" }),
               }}
             />
           );
@@ -77,7 +78,7 @@ export function PeriodPicker({
           sx={{
             mt: 1.75,
             p: 2,
-            borderRadius: 3,
+            borderRadius: `${radii.card}px`,
             border: "1px solid",
             borderColor: "divider",
             bgcolor: "action.hover",

@@ -19,6 +19,8 @@ import HistoryRoundedIcon from "@mui/icons-material/HistoryRounded";
 import RepeatRoundedIcon from "@mui/icons-material/RepeatRounded";
 import SatelliteAltRoundedIcon from "@mui/icons-material/SatelliteAltRounded";
 import type { Trip } from "@/types";
+import { viaLabel } from "@/lib/legs";
+import { radii } from "@/theme/theme";
 import { fmtMiles, fmtMoney, placeLabel, tripAmount } from "./format";
 
 const LONG_PRESS_MS = 500;
@@ -158,6 +160,10 @@ export function TripRow({ trip, revealed, onRevealChange, onTap, onLongPress, on
     start.current = null;
   }, [cancelLongPress, offset, settle]);
 
+  // A stop journey reads as one trip "via" its intermediate stops — the same
+  // phrasing the report, the CSV/XLSX and the shared link all use.
+  const via = viaLabel(trip.legs);
+
   const handleClick = useCallback(() => {
     if (longPressFired.current) {
       longPressFired.current = false;
@@ -172,7 +178,7 @@ export function TripRow({ trip, revealed, onRevealChange, onTap, onLongPress, on
   }, [onRevealChange, onTap, revealed]);
 
   return (
-    <Box sx={{ position: "relative", borderRadius: 3, overflow: "hidden" }}>
+    <Box sx={{ position: "relative", borderRadius: `${radii.card}px`, overflow: "hidden" }}>
       <Stack
         direction="row"
         sx={{ position: "absolute", inset: 0, alignItems: "stretch" }}
@@ -272,6 +278,11 @@ export function TripRow({ trip, revealed, onRevealChange, onTap, onLongPress, on
                 {placeLabel(trip.to)}
               </Typography>
             </Stack>
+            {via ? (
+              <Typography variant="caption" color="text.secondary" noWrap sx={{ minWidth: 0 }}>
+                via {via}
+              </Typography>
+            ) : null}
             <SourceChip source={trip.source} />
           </Stack>
           {trip.purpose ? (

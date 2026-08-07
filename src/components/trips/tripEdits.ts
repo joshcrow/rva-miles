@@ -20,6 +20,8 @@ export function buildRepeatTrip(original: Trip, todayKey: string, ratePerMile: n
     from: original.from,
     to: original.to,
     distanceMiles: original.distanceMiles,
+    legs: original.legs,
+    directMiles: original.directMiles,
     roundTrip: original.roundTrip,
     purpose: original.purpose,
     vehicle: original.vehicle,

@@ -7,7 +7,7 @@ import Typography from "@mui/material/Typography";
 import ListAltRoundedIcon from "@mui/icons-material/ListAltRounded";
 import SearchOffRoundedIcon from "@mui/icons-material/SearchOffRounded";
 import EventBusyRoundedIcon from "@mui/icons-material/EventBusyRounded";
-import { brand } from "@/theme/theme";
+import { brand, radii } from "@/theme/theme";
 
 export type EmptyTripsVariant = "none" | "month" | "search";
 
@@ -23,14 +23,16 @@ export function EmptyTripsState({ variant, monthLabel, onClearSearch }: EmptyTri
   if (variant === "none") {
     return (
       <Box
+        // Plain bordered panel + tinted icon tile; the CTA below is this
+        // state's single gradient.
         sx={{
           textAlign: "center",
           px: 2,
           py: 5,
-          borderRadius: 4,
+          borderRadius: `${radii.card}px`,
           border: "1px solid",
           borderColor: "divider",
-          backgroundImage: "linear-gradient(160deg, rgba(124,58,237,0.09), rgba(217,70,239,0.06))",
+          bgcolor: "background.paper",
         }}
       >
         <Box
@@ -38,12 +40,11 @@ export function EmptyTripsState({ variant, monthLabel, onClearSearch }: EmptyTri
             width: 64,
             height: 64,
             mx: "auto",
-            borderRadius: "20px",
+            borderRadius: `${radii.card}px`,
             display: "grid",
             placeItems: "center",
-            background: brand.gradient,
-            color: "#fff",
-            boxShadow: 6,
+            bgcolor: "action.selected",
+            color: "primary.main",
           }}
         >
           <ListAltRoundedIcon sx={{ fontSize: 30 }} />

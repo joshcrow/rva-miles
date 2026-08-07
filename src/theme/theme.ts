@@ -1,8 +1,17 @@
 "use client";
 
-// RVA Miles design system. Single source of truth for color, type, radius and
-// component shape. MUI CssVars (colorSchemeSelector 'data') so the mode can be
-// switched manually AND resolved before first paint by InitColorSchemeScript.
+// RVA Miles design system. Single source of truth for color, type, radius,
+// shadow and component shape. MUI CssVars (colorSchemeSelector 'data') so the
+// mode can be switched manually AND resolved before first paint by
+// InitColorSchemeScript.
+//
+// Shape rules the whole app obeys:
+//   - every corner is one of the four `radii` tokens, written as a px string
+//   - every shadow is one of the two `elevation` tokens
+//   - at most one brand-gradient moment per screen
+// Component overrides below carry the tokens, so screens should almost never
+// need a local radius: if an sx sets `borderRadius` to restate a token the
+// component already has, delete it.
 
 import { createTheme } from "@mui/material/styles";
 import type { Shadows } from "@mui/material/styles";
@@ -11,6 +20,38 @@ export const brand = {
   violet: "#7C3AED",
   fuchsia: "#D946EF",
   gradient: "linear-gradient(135deg,#7C3AED,#D946EF)",
+} as const;
+
+/**
+ * The four corner radii the whole app is allowed to use, in px.
+ *
+ * Always spell them as px strings in `sx` (`` borderRadius: `${radii.card}px` ``).
+ * A bare number in `sx` is a *multiplier* of `theme.shape.borderRadius`, which
+ * is how v2 drifted to 24/36/48px corners that nobody chose.
+ *
+ *  - `card`    cards, tiles, table containers, banners, sheets-within-pages
+ *  - `control` buttons, inputs, small icon tiles, structured chips
+ *  - `sheet`   the top corners of a bottom sheet
+ *  - `pill`    status pills, badges, dots, circular discs
+ */
+export const radii = {
+  card: 20,
+  control: 12,
+  sheet: 24,
+  pill: 999,
+} as const;
+
+/**
+ * Two shadows, not a ramp. Light mode: `rest` for resting surfaces, `raised`
+ * for things that float above the page (sheets, menus, snackbars). Dark mode
+ * separates surfaces with borders and background contrast instead — resting
+ * surfaces get no shadow at all, overlays keep `raised`.
+ */
+export const elevation = {
+  /** Light-mode resting cards. */
+  rest: "0 1px 2px rgba(16,10,30,0.06), 0 4px 14px rgba(16,10,30,0.05)",
+  /** Sheets, menus, dialogs, snackbars — both schemes. */
+  raised: "0 8px 28px rgba(16,10,30,0.14)",
 } as const;
 
 const FONT_STACK = [
@@ -24,19 +65,16 @@ const FONT_STACK = [
   "sans-serif",
 ].join(", ");
 
-/** Soft, layered elevation ramp — two stacked low-alpha shadows per step. */
-function softShadows(): Shadows {
+/**
+ * MUI wants 25 shadow steps; the design system has two. Every `elevation`
+ * prop and every `theme.shadows[n]` therefore lands on one of the tokens —
+ * low steps rest, anything MUI considers "floating" (menus 8, drawers 16,
+ * dialogs 24) raises. There is no third shadow to drift into.
+ */
+function tokenShadows(): Shadows {
   const out: string[] = ["none"];
   for (let i = 1; i < 25; i += 1) {
-    const y1 = Math.round(i * 0.9) + 1;
-    const b1 = Math.round(i * 1.9) + 4;
-    const y2 = Math.max(1, Math.round(i * 0.35));
-    const b2 = Math.round(i * 0.9) + 2;
-    const a1 = (0.05 + i * 0.0035).toFixed(3);
-    const a2 = (0.04 + i * 0.002).toFixed(3);
-    out.push(
-      `0px ${y1}px ${b1}px rgba(15,10,35,${a1}), 0px ${y2}px ${b2}px rgba(15,10,35,${a2})`,
-    );
+    out.push(i <= 2 ? elevation.rest : elevation.raised);
   }
   return out as unknown as Shadows;
 }
@@ -122,8 +160,10 @@ const theme = createTheme({
       },
     },
   },
-  shape: { borderRadius: 12 },
-  shadows: softShadows(),
+  // Bare `sx={{ borderRadius: n }}` multiplies this. Anchoring it to the
+  // control token means an accidental bare `1` is at least on-system.
+  shape: { borderRadius: radii.control },
+  shadows: tokenShadows(),
   typography: {
     fontFamily: FONT_STACK,
     h1: {
@@ -184,18 +224,21 @@ const theme = createTheme({
         // Kill MUI's dark-mode elevation tint so surfaces stay a flat, rich
         // near-black rather than drifting gray.
         root: { backgroundImage: "none" },
-        rounded: { borderRadius: 16 },
+        rounded: { borderRadius: radii.card },
       },
     },
     MuiCard: {
       defaultProps: { elevation: 0 },
       styleOverrides: {
         root: ({ theme: t }) => ({
-          borderRadius: 16,
+          borderRadius: radii.card,
           border: "1px solid",
           borderColor: (t.vars ?? t).palette.divider,
           backgroundImage: "none",
-          boxShadow: t.shadows[2],
+          boxShadow: elevation.rest,
+          // Dark mode separates surfaces with the border above plus the
+          // paper/default contrast — a shadow on near-black is just noise.
+          ...t.applyStyles("dark", { boxShadow: "none" }),
         }),
       },
     },
@@ -208,8 +251,8 @@ const theme = createTheme({
     MuiButton: {
       defaultProps: { disableElevation: true },
       styleOverrides: {
-        root: { borderRadius: 12, fontWeight: 600, textTransform: "none" },
-        sizeSmall: { minHeight: 38, paddingInline: 14, borderRadius: 10 },
+        root: { borderRadius: radii.control, fontWeight: 600, textTransform: "none" },
+        sizeSmall: { minHeight: 38, paddingInline: 14 },
         sizeMedium: { minHeight: 48, paddingInline: 18, fontSize: "0.9375rem" },
         sizeLarge: { minHeight: 54, paddingInline: 24, fontSize: "1rem" },
         outlined: { borderWidth: 1.5, "&:hover": { borderWidth: 1.5 } },
@@ -217,7 +260,7 @@ const theme = createTheme({
     },
     MuiIconButton: {
       styleOverrides: {
-        root: { borderRadius: 12 },
+        root: { borderRadius: radii.control },
         sizeMedium: { width: 44, height: 44 },
         sizeLarge: { width: 52, height: 52 },
       },
@@ -225,7 +268,7 @@ const theme = createTheme({
     MuiToggleButton: {
       styleOverrides: {
         root: {
-          borderRadius: 12,
+          borderRadius: radii.control,
           minHeight: 44,
           fontWeight: 600,
           textTransform: "none",
@@ -233,7 +276,7 @@ const theme = createTheme({
       },
     },
     MuiToggleButtonGroup: {
-      styleOverrides: { root: { borderRadius: 12 } },
+      styleOverrides: { root: { borderRadius: radii.control } },
     },
     MuiTextField: { defaultProps: { variant: "outlined" } },
     MuiInputBase: {
@@ -245,13 +288,13 @@ const theme = createTheme({
     },
     MuiOutlinedInput: {
       styleOverrides: {
-        root: { borderRadius: 12 },
+        root: { borderRadius: radii.control },
         input: { paddingTop: 14, paddingBottom: 14 },
         notchedOutline: { borderWidth: 1.5 },
       },
     },
     MuiFilledInput: {
-      styleOverrides: { root: { borderRadius: 12 } },
+      styleOverrides: { root: { borderRadius: radii.control } },
     },
     MuiBottomNavigation: {
       styleOverrides: { root: { height: 64, backgroundColor: "transparent" } },
@@ -276,34 +319,41 @@ const theme = createTheme({
     },
     MuiChip: {
       styleOverrides: {
-        root: { borderRadius: 999, fontWeight: 600 },
+        root: { borderRadius: radii.pill, fontWeight: 600 },
         sizeMedium: { height: 34, fontSize: "0.8125rem" },
         sizeSmall: { height: 26 },
       },
     },
     MuiListItemButton: {
-      styleOverrides: { root: { borderRadius: 12, minHeight: 48 } },
+      styleOverrides: { root: { borderRadius: radii.control, minHeight: 48 } },
     },
     MuiDialog: {
-      styleOverrides: { paper: { borderRadius: 20, margin: 16 } },
+      styleOverrides: {
+        paper: { borderRadius: radii.card, margin: 16, boxShadow: elevation.raised },
+      },
     },
     MuiDrawer: {
       styleOverrides: {
         paperAnchorBottom: {
-          borderTopLeftRadius: 20,
-          borderTopRightRadius: 20,
+          borderTopLeftRadius: radii.sheet,
+          borderTopRightRadius: radii.sheet,
+          borderBottomLeftRadius: 0,
+          borderBottomRightRadius: 0,
           backgroundImage: "none",
+          boxShadow: elevation.raised,
           // Bottom sheets must clear the home indicator.
           paddingBottom: "var(--safe-bottom, 0px)",
         },
       },
     },
     MuiMenu: {
-      styleOverrides: { paper: { marginTop: 6 } },
+      styleOverrides: {
+        paper: { marginTop: 6, borderRadius: radii.card, boxShadow: elevation.raised },
+      },
     },
     MuiAlert: {
       styleOverrides: {
-        root: { borderRadius: 14, alignItems: "center", fontWeight: 500 },
+        root: { borderRadius: radii.card, alignItems: "center", fontWeight: 500 },
         action: { paddingTop: 0, alignItems: "center" },
       },
     },
@@ -314,17 +364,19 @@ const theme = createTheme({
     },
     MuiTabs: { styleOverrides: { root: { minHeight: 46 } } },
     MuiLinearProgress: {
-      styleOverrides: { root: { borderRadius: 999, height: 6 } },
+      styleOverrides: { root: { borderRadius: radii.pill, height: 6 } },
     },
     MuiSkeleton: {
       defaultProps: { animation: "wave" },
-      styleOverrides: { root: { borderRadius: 12 } },
+      styleOverrides: { root: { borderRadius: radii.control } },
     },
     MuiSwitch: { defaultProps: { color: "primary" } },
     MuiTooltip: {
-      styleOverrides: { tooltip: { borderRadius: 10, fontSize: "0.75rem" } },
+      styleOverrides: {
+        tooltip: { borderRadius: radii.control, fontSize: "0.75rem" },
+      },
     },
-    MuiFab: { styleOverrides: { root: { borderRadius: 18 } } },
+    MuiFab: { styleOverrides: { root: { borderRadius: radii.card } } },
     MuiLink: { defaultProps: { underline: "hover" } },
   },
 });

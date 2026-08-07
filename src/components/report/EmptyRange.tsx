@@ -13,7 +13,7 @@ import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import DateRangeRoundedIcon from "@mui/icons-material/DateRangeRounded";
 import EventBusyRoundedIcon from "@mui/icons-material/EventBusyRounded";
 import type { DateRange } from "@/types";
-import { brand } from "@/theme/theme";
+import { brand, radii } from "@/theme/theme";
 import { rangeLabelLong } from "./reportData";
 
 export interface EmptyRangeProps {
@@ -26,15 +26,17 @@ export interface EmptyRangeProps {
 export function EmptyRange({ range, onWiden, widenLabel }: EmptyRangeProps) {
   return (
     <Box
+      // Plain bordered panel — the tinted brand wash it used to have made
+      // three gradients fight on one empty state. The CTA below is the only
+      // gradient left.
       sx={{
         textAlign: "center",
         px: 2.5,
         py: 5,
-        borderRadius: 4,
+        borderRadius: `${radii.card}px`,
         border: "1px solid",
         borderColor: "divider",
-        backgroundImage:
-          "linear-gradient(160deg, rgba(124,58,237,0.09), rgba(217,70,239,0.06))",
+        bgcolor: "background.paper",
       }}
     >
       <Box
@@ -42,12 +44,11 @@ export function EmptyRange({ range, onWiden, widenLabel }: EmptyRangeProps) {
           width: 68,
           height: 68,
           mx: "auto",
-          borderRadius: "20px",
+          borderRadius: `${radii.card}px`,
           display: "grid",
           placeItems: "center",
-          backgroundImage: brand.gradient,
-          color: "#fff",
-          boxShadow: 6,
+          bgcolor: "action.selected",
+          color: "primary.main",
         }}
       >
         <EventBusyRoundedIcon sx={{ fontSize: 32 }} />
@@ -67,6 +68,7 @@ export function EmptyRange({ range, onWiden, widenLabel }: EmptyRangeProps) {
             variant="contained"
             startIcon={<DateRangeRoundedIcon />}
             onClick={onWiden}
+            // The one gradient this state is allowed.
             sx={{ backgroundImage: brand.gradient, color: "#fff" }}
           >
             {widenLabel ?? "Widen the range"}

@@ -11,6 +11,7 @@ import IconButton from "@mui/material/IconButton";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
+import { radii } from "@/theme/theme";
 
 export interface SheetProps {
   open: boolean;
@@ -61,7 +62,7 @@ export function Sheet({ open, onClose, title, subtitle, children, footer }: Shee
         sx={{
           width: 40,
           height: 4,
-          borderRadius: 999,
+          borderRadius: `${radii.pill}px`,
           bgcolor: "divider",
           mx: "auto",
           mt: 1.25,

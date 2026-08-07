@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Trip } from "@/types";
+import type { Trip, TripLeg } from "@/types";
 import { buildCsv, buildSummaryText, buildXlsx, reportFilename, type ReportMeta } from "../exporters";
 
 let nextId = 1;
@@ -253,6 +253,80 @@ describe("buildXlsx", () => {
     expect(totalsRow.getCell(4).value).toBe("Totals");
     expect(totalsRow.getCell(5).value).toBe(0);
     expect(totalsRow.getCell(7).value).toBe(0);
+  });
+});
+
+describe("multi-leg trips (To column reads the route, not just the endpoint)", () => {
+  function leg(overrides: Partial<TripLeg> = {}): TripLeg {
+    return {
+      from: { name: "A" },
+      to: { name: "B" },
+      distanceMiles: 10,
+      billable: true,
+      ...overrides,
+    };
+  }
+
+  // Richmond home -> Crozet (personal, unbilled) -> Charlottesville work
+  // site (billed). distanceMiles is the authoritative billed total, already
+  // equal to the sum of billable legs — exporters never recompute it.
+  const stopTrip = makeTrip({
+    from: { name: "Richmond home" },
+    to: { name: "Charlottesville site" },
+    distanceMiles: 25,
+    ratePerMile: 0.5,
+    legs: [
+      leg({ from: { name: "Richmond home" }, to: { name: "Crozet" }, distanceMiles: 40, billable: false }),
+      leg({ from: { name: "Crozet" }, to: { name: "Charlottesville site" }, distanceMiles: 25, billable: true }),
+    ],
+  });
+
+  it("buildCsv: To column folds the via stop in, miles/amount stay the billed total", () => {
+    const lines = buildCsv([stopTrip], meta).split("\r\n").filter(Boolean);
+    expect(lines[1]).toBe("2026-08-03,Richmond home,Charlottesville site (via Crozet),,25.0,0.50,12.50");
+  });
+
+  it("buildCsv: a trip with a single leg (no via) prints the plain destination", () => {
+    const trip = makeTrip({
+      to: { name: "Office" },
+      legs: [leg({ from: { name: "Home" }, to: { name: "Office" }, billable: true })],
+    });
+    const lines = buildCsv([trip], meta).split("\r\n").filter(Boolean);
+    expect(lines[1]).toContain(",Office,");
+    expect(lines[1]).not.toContain("via");
+  });
+
+  it("buildCsv: a 3-leg journey joins every intermediate stop", () => {
+    const trip = makeTrip({
+      from: { name: "Richmond home" },
+      to: { name: "Charlottesville site" },
+      legs: [
+        leg({ from: { name: "Richmond home" }, to: { name: "Crozet" }, billable: false }),
+        leg({ from: { name: "Crozet" }, to: { name: "Waynesboro" }, billable: false }),
+        leg({ from: { name: "Waynesboro" }, to: { name: "Charlottesville site" }, billable: true }),
+      ],
+    });
+    const lines = buildCsv([trip], meta).split("\r\n").filter(Boolean);
+    expect(lines[1]).toContain("Charlottesville site (via Crozet, Waynesboro)");
+  });
+
+  it("buildSummaryText: the aligned table shows the via-annotated destination", () => {
+    const text = buildSummaryText([stopTrip], meta);
+    expect(text).toContain("Charlottesville site (via Crozet)");
+  });
+
+  it("buildXlsx: the To cell contains the via-annotated destination, and Miles/Amount are unaffected", async () => {
+    const blob = await buildXlsx([stopTrip], meta);
+    const ExcelJS = (await import("exceljs")).default;
+    const buffer = Buffer.from(await blob.arrayBuffer());
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(buffer as unknown as Parameters<typeof workbook.xlsx.load>[0]);
+    const sheet = workbook.getWorksheet("Mileage Report");
+    if (!sheet) throw new Error("missing sheet");
+    const row = sheet.getRow(8); // header block (5) + blank (1) + table header (1) + first data row
+    expect(row.getCell(3).value).toBe("Charlottesville site (via Crozet)");
+    expect(row.getCell(5).value).toBe(25); // Miles: the authoritative billed total, not a leg sum recomputed here
+    expect(row.getCell(7).value).toBe(12.5); // Amount: 25 * 0.5
   });
 });
 

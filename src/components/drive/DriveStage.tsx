@@ -7,6 +7,10 @@ import Box from "@mui/material/Box";
  * The cockpit canvas. Fixed to the viewport (escaping the app's 480px column)
  * and near-black in BOTH color schemes: this screen is read through a
  * windshield's worth of glare and at night, so it never goes light.
+ *
+ * Deliberately flat — the only brand moment on this screen is the START ring
+ * (idle) and nothing at all while recording. The stage used to carry two
+ * radial brand washes on top of that.
  */
 
 export const STAGE_BG = "#0B0A10";
@@ -31,15 +35,6 @@ export function DriveStage({ children }: { children: ReactNode }) {
         // the STOP button must never be clipped off the bottom.
         overflowX: "hidden",
         overflowY: "auto",
-        "&::before": {
-          content: '""',
-          position: "absolute",
-          inset: 0,
-          pointerEvents: "none",
-          background:
-            "radial-gradient(115% 55% at 50% -8%, rgba(124,58,237,0.30), transparent 62%)," +
-            "radial-gradient(95% 45% at 50% 108%, rgba(217,70,239,0.16), transparent 66%)",
-        },
       }}
     >
       <Box

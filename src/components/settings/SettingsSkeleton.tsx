@@ -5,6 +5,7 @@
 import Box from "@mui/material/Box";
 import Skeleton from "@mui/material/Skeleton";
 import Stack from "@mui/material/Stack";
+import { radii } from "@/theme/theme";
 
 export function SettingsSkeleton() {
   return (
@@ -17,7 +18,7 @@ export function SettingsSkeleton() {
       {[220, 140, 110, 56, 140].map((h, i) => (
         <Box key={i}>
           <Skeleton variant="text" width={110} height={18} sx={{ mb: 1 }} />
-          <Skeleton variant="rounded" height={h} sx={{ borderRadius: "16px" }} />
+          <Skeleton variant="rounded" height={h} sx={{ borderRadius: `${radii.card}px` }} />
         </Box>
       ))}
     </Stack>

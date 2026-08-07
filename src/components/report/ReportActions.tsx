@@ -10,7 +10,6 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import IosShareRoundedIcon from "@mui/icons-material/IosShareRounded";
 import TuneRoundedIcon from "@mui/icons-material/TuneRounded";
-import { brand } from "@/theme/theme";
 
 export interface ReportActionsProps {
   onShare: () => void;
@@ -29,14 +28,9 @@ export function ReportActions({ onShare, onMore, sharing }: ReportActionsProps) 
           startIcon={<IosShareRoundedIcon />}
           onClick={onShare}
           disabled={sharing}
-          sx={{
-            backgroundImage: brand.gradient,
-            color: "#fff",
-            boxShadow: 4,
-            minHeight: 56,
-            fontSize: "1.0625rem",
-            "&.Mui-disabled": { backgroundImage: brand.gradient, color: "#fff", opacity: 0.6 },
-          }}
+          // Solid primary. The Report screen spends its brand budget on the
+          // SummaryCard's gradient hairline directly above this.
+          sx={{ minHeight: 56, fontSize: "1.0625rem" }}
         >
           {sharing ? "Preparing…" : "Share report"}
         </Button>

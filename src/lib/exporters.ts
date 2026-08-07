@@ -5,6 +5,7 @@
 // only — never `new Date(dateKey)` — to stay immune to the UTC-parse bug.
 
 import type { DateRange, Place, Trip } from "@/types";
+import { routeText } from "./legs";
 import { formatRateDigits } from "./rates";
 
 export interface ReportMeta {
@@ -77,7 +78,9 @@ function computeReportRows(trips: Trip[]): { rows: ReportRow[]; totals: ReportTo
   const rows: ReportRow[] = sorted.map((t) => ({
     dateKey: t.dateKey,
     from: placeLabel(t.from),
-    to: placeLabel(t.to),
+    // Multi-leg trips read as "Charlottesville site (via Crozet)" — the
+    // intermediate personal stop is visible without adding a column.
+    to: routeText(t),
     purpose: t.purpose ?? "",
     miles: roundTo(t.distanceMiles, 1),
     rate: roundTo(t.ratePerMile, 3),

@@ -11,6 +11,7 @@ import ArrowRightAltRoundedIcon from "@mui/icons-material/ArrowRightAltRounded";
 import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 import type { Route } from "@/types";
 import { formatKey } from "@/lib/dates";
+import { radii } from "@/theme/theme";
 import Sheet from "./Sheet";
 import { fmtMiles, placeLabel } from "./format";
 
@@ -95,7 +96,7 @@ export function CatchUpSheet({ open, onClose, suggestions, onLog, onAddOther }: 
                     sx={{
                       width: "100%",
                       textAlign: "left",
-                      borderRadius: 3,
+                      borderRadius: `${radii.card}px`,
                       px: 1.75,
                       py: 1.5,
                       minHeight: 60,
@@ -159,7 +160,7 @@ export function CatchUpSheet({ open, onClose, suggestions, onLog, onAddOther }: 
                 sx={{
                   width: "100%",
                   justifyContent: "flex-start",
-                  borderRadius: 3,
+                  borderRadius: `${radii.card}px`,
                   px: 1.75,
                   py: 1.25,
                   minHeight: 48,

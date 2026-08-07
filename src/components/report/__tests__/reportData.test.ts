@@ -239,6 +239,47 @@ describe("report link payload", () => {
   });
 });
 
+describe("multi-leg trips — via is folded into the payload/display `to` string", () => {
+  // ReportPayload has no `legs` field (schema stays v:1), so the personal
+  // stop must be baked into the flat `to` string once, at buildPayload time.
+  const stopTrip = trip({
+    id: "stop",
+    dateKey: "2025-08-05",
+    from: { name: "Richmond home" },
+    to: { name: "Charlottesville site" },
+    distanceMiles: 25,
+    ratePerMile: 0.7,
+    legs: [
+      { from: { name: "Richmond home" }, to: { name: "Crozet" }, distanceMiles: 40, billable: false },
+      { from: { name: "Crozet" }, to: { name: "Charlottesville site" }, distanceMiles: 25, billable: true },
+    ],
+  });
+
+  it("buildPayload folds the via stop into the flat to string", () => {
+    const meta = buildMeta({ startKey: "2025-08-01", endKey: "2025-08-15" }, SETTINGS);
+    const payload = buildPayload([stopTrip], meta, 1);
+    expect(payload.trips[0].to).toBe("Charlottesville site (via Crozet)");
+  });
+
+  it("a round-tripped viewer trip (synthesized from the flat payload) displays the same via text with no further changes", () => {
+    const meta = buildMeta({ startKey: "2025-08-01", endKey: "2025-08-15" }, SETTINGS);
+    const payload = buildPayload([stopTrip], meta, 1);
+    const viewerTrips = payloadToTrips(payload);
+    expect(displayRows(viewerTrips)[0].to).toBe("Charlottesville site (via Crozet)");
+  });
+
+  it("displayRows on the original (legs-carrying) trip also shows the via text", () => {
+    expect(displayRows([stopTrip])[0].to).toBe("Charlottesville site (via Crozet)");
+  });
+
+  it("a legless trip is completely unaffected — to is still the plain destination", () => {
+    const plain = trip({ to: { name: "Office" } });
+    const meta = buildMeta({ startKey: "2025-08-01", endKey: "2025-08-15" }, SETTINGS);
+    expect(buildPayload([plain], meta, 1).trips[0].to).toBe("Office");
+    expect(displayRows([plain])[0].to).toBe("Office");
+  });
+});
+
 describe("sanitizePayload", () => {
   it("coerces hostile / corrupt rows instead of crashing", () => {
     const dirty = {

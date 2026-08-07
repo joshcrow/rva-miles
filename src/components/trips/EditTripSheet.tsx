@@ -17,10 +17,13 @@ import Switch from "@mui/material/Switch";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import DeleteRoundedIcon from "@mui/icons-material/DeleteRounded";
-import type { Settings, Trip } from "@/types";
+import type { Settings, Trip, TripLeg } from "@/types";
 import { addDaysKey, formatKey } from "@/lib/dates";
+import { billableMiles } from "@/lib/legs";
 import { formatRate } from "@/lib/rates";
+import { radii } from "@/theme/theme";
 import Sheet from "./Sheet";
+import { fmtMiles, placeLabel } from "./format";
 import { applyTripEdit, formFromTrip, type TripEditForm } from "./tripEdits";
 
 export interface EditTripSheetProps {
@@ -40,6 +43,10 @@ function fmtRate(n: number): string {
 
 export function EditTripSheet({ open, trip, today, settings, onClose, onSave, onDelete }: EditTripSheetProps) {
   const [form, setForm] = useState<TripEditForm | null>(() => (trip ? formFromTrip(trip) : null));
+  // Legs live outside TripEditForm: their endpoints are not editable here, so
+  // only the billable switches are state, and they feed the Miles field rather
+  // than being a second source of truth for it.
+  const [legs, setLegs] = useState<TripLeg[] | null>(() => trip?.legs ?? null);
   const [saving, setSaving] = useState(false);
   // Reseed only on the closed->open transition (React's documented "adjust
   // state during render" pattern — not an effect, so it can't cascade) so a
@@ -51,6 +58,7 @@ export function EditTripSheet({ open, trip, today, settings, onClose, onSave, on
     setOpenSnapshot(open);
     if (open && trip) {
       setForm(formFromTrip(trip));
+      setLegs(trip.legs ?? null);
       setSaving(false);
     }
   }
@@ -68,10 +76,26 @@ export function EditTripSheet({ open, trip, today, settings, onClose, onSave, on
 
   const yesterday = today ? addDaysKey(today, -1) : "";
 
+  const hasLegs = Boolean(legs && legs.length > 0);
+  const billedLegCount = legs ? legs.filter((l) => l.billable).length : 0;
+
+  /**
+   * Flipping a leg's switch rewrites the Miles field to the new billable sum.
+   * Miles stays the one authoritative number the save writes to
+   * `distanceMiles` — this never becomes a second, competing total.
+   */
+  const toggleLeg = (index: number, billable: boolean) => {
+    if (!legs) return;
+    const next = legs.map((leg, i) => (i === index ? { ...leg, billable } : leg));
+    setLegs(next);
+    setForm((f) => (f ? { ...f, distance: billableMiles(next).toFixed(1) } : f));
+  };
+
   const save = async () => {
     if (!canSave) return;
     setSaving(true);
-    const next = applyTripEdit(trip, form, Date.now());
+    const edited = applyTripEdit(trip, form, Date.now());
+    const next: Trip = legs ? { ...edited, legs } : edited;
     const ok = await onSave(next);
     setSaving(false);
     if (ok) onClose();
@@ -140,12 +164,93 @@ export function EditTripSheet({ open, trip, today, settings, onClose, onSave, on
           fullWidth
         />
 
+        {hasLegs && legs ? (
+          <Box
+            sx={{
+              borderRadius: `${radii.card}px`,
+              border: "1px solid",
+              borderColor: "divider",
+              px: 2,
+              py: 1.5,
+            }}
+          >
+            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+              <Typography variant="overline" color="text.secondary">
+                Stops
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {`${billedLegCount} of ${legs.length} legs billed`}
+              </Typography>
+            </Stack>
+
+            <Stack spacing={0.75}>
+              {legs.map((leg, i) => {
+                const label = `${placeLabel(leg.from)} → ${placeLabel(leg.to)}`;
+                return (
+                  <Box
+                    key={`leg-${i}`}
+                    sx={{
+                      borderRadius: `${radii.control}px`,
+                      border: "1px solid",
+                      borderColor: "divider",
+                      px: 1.5,
+                      py: 1,
+                      opacity: leg.billable ? 1 : 0.62,
+                    }}
+                  >
+                    <Stack direction="row" alignItems="center" spacing={0.75}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, minWidth: 0, flex: 1 }} noWrap>
+                        {label}
+                      </Typography>
+                      <Typography
+                        variant="body2"
+                        className="tnum"
+                        sx={{ fontWeight: 700, flexShrink: 0 }}
+                      >
+                        {fmtMiles(leg.distanceMiles)} mi
+                      </Typography>
+                      <Switch
+                        size="small"
+                        checked={leg.billable}
+                        onChange={(e) => toggleLeg(i, e.target.checked)}
+                        inputProps={{ "aria-label": `Bill ${label}` }}
+                        sx={{ flexShrink: 0 }}
+                      />
+                    </Stack>
+                    {!leg.billable ? (
+                      <Typography variant="caption" color="text.secondary" component="p" sx={{ mt: 0.25 }}>
+                        Personal — not billed
+                      </Typography>
+                    ) : null}
+                  </Box>
+                );
+              })}
+            </Stack>
+
+            <Typography variant="caption" color="text.secondary" component="p" sx={{ mt: 1.25 }}>
+              Switching a leg rewrites Miles below. The stops themselves can&apos;t be changed here —
+              delete and re-log to restructure the journey.
+            </Typography>
+            {trip.directMiles ? (
+              <Typography variant="caption" color="text.secondary" component="p" sx={{ mt: 0.5 }}>
+                {`Direct route was ${fmtMiles(trip.directMiles)} mi.`}
+              </Typography>
+            ) : null}
+          </Box>
+        ) : null}
+
         <TextField
           label="Miles"
           value={form.distance}
           onChange={(e) => set("distance", e.target.value.replace(/[^0-9.]/g, ""))}
           error={form.distance.length > 0 && !distanceValid}
-          helperText={form.distance.length > 0 && !distanceValid ? "Enter a distance greater than 0" : " "}
+          helperText={
+            form.distance.length > 0 && !distanceValid
+              ? "Enter a distance greater than 0"
+              : hasLegs
+                ? "The billed total — edit it directly to override the legs above"
+                : " "
+          }
           fullWidth
           slotProps={{
             htmlInput: { inputMode: "decimal" },
@@ -190,22 +295,26 @@ export function EditTripSheet({ open, trip, today, settings, onClose, onSave, on
           fullWidth
         />
 
-        <FormControlLabel
-          control={
-            <Switch checked={form.roundTrip} onChange={(e) => set("roundTrip", e.target.checked)} />
-          }
-          label={
-            <Stack>
-              <Typography variant="body2" component="span" sx={{ fontWeight: 600 }}>
-                Round trip
-              </Typography>
-              <Typography variant="caption" component="span" color="text.secondary">
-                Just a label here — edit Miles above if the distance should change
-              </Typography>
-            </Stack>
-          }
-          sx={{ ml: 0, mr: 0, justifyContent: "space-between", flexDirection: "row-reverse" }}
-        />
+        {/* A stop journey is already described leg by leg; a round-trip label
+            on top of it would be ambiguous about which legs repeated. */}
+        {!hasLegs ? (
+          <FormControlLabel
+            control={
+              <Switch checked={form.roundTrip} onChange={(e) => set("roundTrip", e.target.checked)} />
+            }
+            label={
+              <Stack>
+                <Typography variant="body2" component="span" sx={{ fontWeight: 600 }}>
+                  Round trip
+                </Typography>
+                <Typography variant="caption" component="span" color="text.secondary">
+                  Just a label here — edit Miles above if the distance should change
+                </Typography>
+              </Stack>
+            }
+            sx={{ ml: 0, mr: 0, justifyContent: "space-between", flexDirection: "row-reverse" }}
+          />
+        ) : null}
 
         <Button
           color="error"

@@ -58,7 +58,8 @@ export function LoggedToast({
         variant="filled"
         severity="success"
         elevation={6}
-        sx={{ width: "100%", boxShadow: 8, alignItems: "center" }}
+        // elevation={6} already resolves to the `raised` token — no local shadow.
+        sx={{ width: "100%", alignItems: "center" }}
         action={
           <>
             {state?.onRoundTrip ? (

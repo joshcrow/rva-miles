@@ -4,6 +4,7 @@ import ButtonBase from "@mui/material/ButtonBase";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import AddRoundedIcon from "@mui/icons-material/AddRounded";
+import { radii } from "@/theme/theme";
 
 export function NewTripTile({ onClick }: { onClick: () => void }) {
   return (
@@ -16,7 +17,7 @@ export function NewTripTile({ onClick }: { onClick: () => void }) {
         justifyContent: "center",
         minHeight: 116,
         p: 1.75,
-        borderRadius: 4,
+        borderRadius: `${radii.card}px`,
         border: "1.5px dashed",
         borderColor: "rgba(124,58,237,0.42)",
         color: "primary.main",

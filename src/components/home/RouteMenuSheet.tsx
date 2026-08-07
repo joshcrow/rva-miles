@@ -8,6 +8,7 @@ import CalendarMonthRoundedIcon from "@mui/icons-material/CalendarMonthRounded";
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
 import EditRoundedIcon from "@mui/icons-material/EditRounded";
 import type { Route } from "@/types";
+import { radii } from "@/theme/theme";
 import Sheet from "./Sheet";
 import { fmtMiles, placeLabel } from "./format";
 
@@ -36,7 +37,7 @@ function MenuRow({
       sx={{
         width: "100%",
         textAlign: "left",
-        borderRadius: 3,
+        borderRadius: `${radii.card}px`,
         px: 1.75,
         py: 1.5,
         minHeight: 60,
@@ -52,7 +53,7 @@ function MenuRow({
             width: 36,
             height: 36,
             flexShrink: 0,
-            borderRadius: 2,
+            borderRadius: `${radii.control}px`,
             display: "grid",
             placeItems: "center",
             bgcolor: "action.selected",

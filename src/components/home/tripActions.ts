@@ -9,6 +9,15 @@ import { placeKey } from "./format";
 
 export { newId };
 
+/**
+ * Query param the trips ledger uses to hand a trip back to the home screen for
+ * "Continue from here" (`/?continue=<tripId>`). Home reads it once on mount,
+ * opens the new-trip sheet with From prefilled to that trip's destination, and
+ * strips the param so a reload doesn't reopen the sheet. Shared as a constant
+ * so a typo on either side can't silently turn the action into a no-op.
+ */
+export const CONTINUE_TRIP_PARAM = "continue";
+
 export function routeMatchKey(from: Place, to: Place): string {
   return `${placeKey(from)}>${placeKey(to)}`;
 }

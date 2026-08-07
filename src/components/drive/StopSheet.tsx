@@ -26,7 +26,7 @@ import { newId } from "@/lib/ids";
 import { routeFromTrip } from "@/lib/routesLogic";
 import type { CompletedDrive } from "@/lib/tracking";
 import { uiActions } from "@/stores/ui";
-import { brand } from "@/theme/theme";
+import { radii } from "@/theme/theme";
 import { formatClock, formatElapsed, formatMiles, formatMoney } from "./driveFormat";
 import {
   analyzeShape,
@@ -253,7 +253,14 @@ export function StopSheet({ open, drive, settings, finalize, onSaved, onDiscard 
       <Box sx={{ px: 3, pt: 1.5, pb: 3 }}>
         <Box
           aria-hidden
-          sx={{ width: 40, height: 4, borderRadius: 999, bgcolor: "divider", mx: "auto", mb: 2 }}
+          sx={{
+            width: 40,
+            height: 4,
+            borderRadius: `${radii.pill}px`,
+            bgcolor: "divider",
+            mx: "auto",
+            mb: 2,
+          }}
         />
 
         <Stack direction="row" alignItems="flex-end" justifyContent="space-between" sx={{ mb: 0.5 }}>
@@ -447,17 +454,10 @@ export function StopSheet({ open, drive, settings, finalize, onSaved, onDiscard 
         <Stack spacing={1.25} sx={{ mt: 3 }}>
           <Button
             size="large"
+            variant="contained"
             onClick={() => void handleSave()}
             disabled={!validDistance || saving}
-            sx={{
-              minHeight: 58,
-              fontSize: "1rem",
-              fontWeight: 700,
-              color: "#FFFFFF",
-              background: brand.gradient,
-              boxShadow: "0 12px 32px rgba(124,58,237,0.32)",
-              "&.Mui-disabled": { background: "none", bgcolor: "action.disabledBackground" },
-            }}
+            sx={{ minHeight: 58, fontSize: "1rem", fontWeight: 700 }}
           >
             {saving ? "Saving…" : "Save trip"}
           </Button>
@@ -491,19 +491,20 @@ function SourceCard({ selected, onClick, icon, label, value, note }: SourceCardP
       role="radio"
       aria-checked={selected}
       onClick={onClick}
-      sx={(t) => ({
+      // Selection reads from the border and fill alone — a shadow on one of
+      // two side-by-side cards just made the pair look uneven.
+      sx={{
         flex: 1,
         p: 1.75,
-        borderRadius: "16px",
+        borderRadius: `${radii.card}px`,
         alignItems: "flex-start",
         flexDirection: "column",
         textAlign: "left",
         border: "1.5px solid",
         borderColor: selected ? "primary.main" : "divider",
         bgcolor: selected ? "action.selected" : "transparent",
-        boxShadow: selected ? t.shadows[2] : "none",
         transition: "border-color .15s ease, background-color .15s ease",
-      })}
+      }}
     >
       <Stack direction="row" spacing={0.75} alignItems="center" sx={{ color: selected ? "primary.main" : "text.secondary" }}>
         {icon}

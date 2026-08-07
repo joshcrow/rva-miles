@@ -15,6 +15,7 @@ import ChevronLeftRoundedIcon from "@mui/icons-material/ChevronLeftRounded";
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
+import { radii } from "@/theme/theme";
 import { fmtMiles, fmtMoney, pluralTrips, type Totals } from "./format";
 import { isSameMonth, monthLabel } from "./monthNav";
 
@@ -131,7 +132,8 @@ export function MonthHeader({
           mt: 1.5,
           display: "flex",
           alignItems: "center",
-          borderRadius: 3,
+          // An input, so it matches every TextField in the app.
+          borderRadius: `${radii.control}px`,
           border: "1px solid",
           borderColor: searching ? "primary.main" : "divider",
           bgcolor: "background.paper",

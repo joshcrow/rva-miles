@@ -10,7 +10,9 @@ import Button from "@mui/material/Button";
 import Typography from "@mui/material/Typography";
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
 import type { Trip } from "@/types";
+import { viaLabel } from "@/lib/legs";
 import { tripAmount } from "@/lib/money";
+import { radii } from "@/theme/theme";
 import {
   fmtMiles,
   fmtMoney,
@@ -41,7 +43,7 @@ export function TripPreviewTable({ trips }: TripPreviewTableProps) {
   return (
     <Box
       sx={{
-        borderRadius: 4,
+        borderRadius: `${radii.card}px`,
         border: "1px solid",
         borderColor: "divider",
         bgcolor: "background.paper",
@@ -106,6 +108,13 @@ export function TripPreviewTable({ trips }: TripPreviewTableProps) {
               {" → "}
             </Box>
             {placeLabelShort(t.to)}
+            {/* The preview must say exactly what the export says, and the
+                exporters print routeText — "… (via Crozet)". */}
+            {viaLabel(t.legs) ? (
+              <Box component="span" sx={{ color: "text.secondary", fontWeight: 400 }}>
+                {` (via ${viaLabel(t.legs)})`}
+              </Box>
+            ) : null}
           </Typography>
 
           <Typography variant="body2" className="tnum" sx={{ textAlign: "right" }}>
@@ -127,6 +136,8 @@ export function TripPreviewTable({ trips }: TripPreviewTableProps) {
           fullWidth
           onClick={() => setExpanded(true)}
           endIcon={<ExpandMoreRoundedIcon />}
+          // Deliberately square: a full-bleed row inside a clipped container.
+          // Its own corners would round against the card's and look doubled.
           sx={{ borderRadius: 0, py: 1.25, borderTop: "1px solid", borderColor: "divider" }}
         >
           {`Show ${hidden} more`}

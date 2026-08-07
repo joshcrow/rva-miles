@@ -1,10 +1,10 @@
 "use client";
 
-// The payoff. Gradient-edged card carrying the two numbers she is about to
-// send: miles (big) and money (success green, always). Everything else is
-// context that has to be right on a report handed to accounts payable —
-// period, owner, vehicle — so a missing owner/vehicle is called out rather
-// than silently omitted.
+// The payoff. A 1.5px gradient hairline is this screen's ONE brand moment,
+// carrying the two numbers she is about to send: miles (big) and money
+// (success green, always). Everything else is context that has to be right on
+// a report handed to accounts payable — period, owner, vehicle — so a missing
+// owner/vehicle is called out rather than silently omitted.
 
 import type { ReactNode } from "react";
 import Link from "next/link";
@@ -15,7 +15,7 @@ import DirectionsCarFilledRoundedIcon from "@mui/icons-material/DirectionsCarFil
 import PersonRoundedIcon from "@mui/icons-material/PersonRounded";
 import ReceiptLongRoundedIcon from "@mui/icons-material/ReceiptLongRounded";
 import type { DateRange } from "@/types";
-import { brand } from "@/theme/theme";
+import { brand, elevation, radii } from "@/theme/theme";
 import {
   fmtMiles,
   fmtMoney,
@@ -49,16 +49,27 @@ export function SummaryCard({ range, totals, ownerName, vehicle, rate }: Summary
   if (!ownerName) missing.push("your name");
   if (!vehicle) missing.push("a vehicle");
 
+  const edge = 1.5;
+
   return (
     <Box
-      sx={{
-        borderRadius: "20px",
-        p: "1.5px",
+      sx={(t) => ({
+        borderRadius: `${radii.card}px`,
+        p: `${edge}px`,
         backgroundImage: brand.gradient,
-        boxShadow: 4,
-      }}
+        boxShadow: elevation.rest,
+        ...t.applyStyles("dark", { boxShadow: "none" }),
+      })}
     >
-      <Box sx={{ borderRadius: "18.5px", bgcolor: "background.paper", px: 2.5, py: 2.25 }}>
+      <Box
+        sx={{
+          // Concentric with the edge above, or the corners look pinched.
+          borderRadius: `${radii.card - edge}px`,
+          bgcolor: "background.paper",
+          px: 2.5,
+          py: 2.25,
+        }}
+      >
         <Typography variant="overline" component="p" sx={{ color: "primary.main" }}>
           {rangeLabelLong(range)}
         </Typography>

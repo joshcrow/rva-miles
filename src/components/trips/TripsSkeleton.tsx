@@ -3,6 +3,7 @@
 import Box from "@mui/material/Box";
 import Skeleton from "@mui/material/Skeleton";
 import Stack from "@mui/material/Stack";
+import { radii } from "@/theme/theme";
 
 export function TripsSkeleton() {
   return (
@@ -13,14 +14,20 @@ export function TripsSkeleton() {
         <Skeleton variant="text" width={44} height={32} />
       </Stack>
       <Skeleton variant="text" width={140} height={20} sx={{ alignSelf: "center" }} />
-      <Skeleton variant="rounded" height={48} sx={{ borderRadius: 3 }} />
+      {/* Search field — control radius. */}
+      <Skeleton variant="rounded" height={48} sx={{ borderRadius: `${radii.control}px` }} />
 
       {[0, 1].map((g) => (
         <Box key={g}>
           <Skeleton variant="text" width={190} height={22} sx={{ mb: 1 }} />
           <Stack spacing={1}>
             {[0, 1].map((r) => (
-              <Skeleton key={r} variant="rounded" height={72} sx={{ borderRadius: 3 }} />
+              <Skeleton
+                key={r}
+                variant="rounded"
+                height={72}
+                sx={{ borderRadius: `${radii.card}px` }}
+              />
             ))}
           </Stack>
         </Box>

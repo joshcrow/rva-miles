@@ -173,10 +173,11 @@ export function PlaceField({
         }}
       />
 
+      {/* The dropdown's radius comes from MuiPaper.rounded (the card token). */}
       {showList ? (
         <Paper
           variant="outlined"
-          sx={{ mt: 0.75, borderRadius: 3, overflow: "hidden", maxHeight: 264, overflowY: "auto" }}
+          sx={{ mt: 0.75, overflow: "hidden", maxHeight: 264, overflowY: "auto" }}
         >
           {busy && suggestions.length === 0 ? (
             <Typography variant="body2" color="text.secondary" sx={{ px: 2, py: 1.5 }}>
@@ -191,6 +192,8 @@ export function PlaceField({
                   // before this tap is handled.
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => select(s)}
+                  // Deliberately square: a full-bleed row inside a clipped
+                  // Paper — its own corners would double against the card's.
                   sx={{ borderRadius: 0, alignItems: "flex-start", py: 1.25 }}
                 >
                   <Stack direction="row" spacing={1.25} sx={{ minWidth: 0, width: "100%" }}>

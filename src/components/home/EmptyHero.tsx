@@ -8,32 +8,35 @@ import Typography from "@mui/material/Typography";
 import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import NavigationRoundedIcon from "@mui/icons-material/NavigationRounded";
 import RouteRoundedIcon from "@mui/icons-material/RouteRounded";
-import { brand } from "@/theme/theme";
+import { brand, radii } from "@/theme/theme";
+import { restingSurface } from "./surfaces";
 
 export function EmptyHero({ onNewTrip }: { onNewTrip: () => void }) {
   return (
     <Box
-      sx={{
+      sx={(t) => ({
         textAlign: "center",
         px: 2,
         py: 5,
-        borderRadius: 4,
+        borderRadius: `${radii.card}px`,
         border: "1px solid",
         borderColor: "divider",
-        backgroundImage: "linear-gradient(160deg, rgba(124,58,237,0.09), rgba(217,70,239,0.06))",
-      }}
+        bgcolor: "background.paper",
+        ...restingSurface(t),
+      })}
     >
+      {/* Tinted, not gradient-filled: this screen spends its single brand
+          moment on the New trip CTA below. */}
       <Box
         sx={{
           width: 72,
           height: 72,
           mx: "auto",
-          borderRadius: "22px",
+          borderRadius: `${radii.card}px`,
           display: "grid",
           placeItems: "center",
-          background: brand.gradient,
-          color: "#fff",
-          boxShadow: 6,
+          bgcolor: "action.selected",
+          color: "primary.main",
         }}
       >
         <RouteRoundedIcon sx={{ fontSize: 34 }} />

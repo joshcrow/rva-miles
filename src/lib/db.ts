@@ -13,6 +13,7 @@ import type {
   Settings,
   Snapshot,
   Trip,
+  TripLeg,
 } from "@/types";
 import { compareKeys, toDateKey } from "./dates";
 import { currentDefaultRate } from "./rates";
@@ -223,6 +224,36 @@ function isFiniteNonNegative(n: unknown): n is number {
   return typeof n === "number" && Number.isFinite(n) && n >= 0;
 }
 
+function isPlaceLike(v: unknown): v is Place {
+  return !!v && typeof v === "object";
+}
+
+/**
+ * `legs` is optional (backward compatible with every snapshot written before
+ * multi-leg trips existed); when present each entry must carry real
+ * endpoints, a finite non-negative distance, and an explicit billable flag —
+ * a malformed leg fails the whole import rather than silently corrupting
+ * `billableMiles`/`routeText` downstream.
+ */
+function assertValidLeg(leg: unknown, tripId: string, index: number): asserts leg is TripLeg {
+  if (!leg || typeof leg !== "object") {
+    throw new Error(`importMerge: trip "${tripId}" legs[${index}] is not an object`);
+  }
+  const rec = leg as Record<string, unknown>;
+  if (!isPlaceLike(rec.from)) {
+    throw new Error(`importMerge: trip "${tripId}" legs[${index}] is missing "from"`);
+  }
+  if (!isPlaceLike(rec.to)) {
+    throw new Error(`importMerge: trip "${tripId}" legs[${index}] is missing "to"`);
+  }
+  if (!isFiniteNonNegative(rec.distanceMiles)) {
+    throw new Error(`importMerge: trip "${tripId}" legs[${index}] has invalid distanceMiles`);
+  }
+  if (typeof rec.billable !== "boolean") {
+    throw new Error(`importMerge: trip "${tripId}" legs[${index}] has invalid "billable"`);
+  }
+}
+
 function assertValidTrip(t: unknown, index: number): asserts t is Trip {
   if (!t || typeof t !== "object") {
     throw new Error(`importMerge: trips[${index}] is not an object`);
@@ -251,6 +282,15 @@ function assertValidTrip(t: unknown, index: number): asserts t is Trip {
   }
   if (!rec.to || typeof rec.to !== "object") {
     throw new Error(`importMerge: trip "${rec.id}" is missing "to"`);
+  }
+  if (rec.legs !== undefined) {
+    if (!Array.isArray(rec.legs)) {
+      throw new Error(`importMerge: trip "${rec.id}" has invalid "legs" (not an array)`);
+    }
+    rec.legs.forEach((leg, legIndex) => assertValidLeg(leg, rec.id as string, legIndex));
+  }
+  if (rec.directMiles !== undefined && !isFiniteNonNegative(rec.directMiles)) {
+    throw new Error(`importMerge: trip "${rec.id}" has invalid "directMiles"`);
   }
 }
 

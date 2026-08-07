@@ -18,6 +18,18 @@ export interface Place {
 
 export type TripSource = "tile" | "manual" | "gps" | "import" | "migrated";
 
+/**
+ * One segment of a multi-leg stop journey, e.g. Richmond home → family house
+ * in Crozet (personal, unbilled) → Charlottesville work site (billed). Legs
+ * are ordered; leg[n].to is the arrival point that leg[n+1] departs from.
+ */
+export interface TripLeg {
+  from: Place;
+  to: Place;
+  distanceMiles: number;
+  billable: boolean;
+}
+
 export interface Trip {
   id: string; // uuid
   /** LOCAL calendar date of the trip, 'YYYY-MM-DD' */
@@ -25,10 +37,35 @@ export interface Trip {
   /** epoch ms — present for GPS-tracked trips; optional for tile/manual logs */
   startTime?: number;
   endTime?: number;
+  /** The journey's first origin. For a multi-leg trip, equal to legs[0].from. */
   from: Place;
+  /** The journey's final destination. For a multi-leg trip, equal to legs[legs.length - 1].to. */
   to: Place;
-  /** Authoritative billed distance (what exports use) */
+  /**
+   * Authoritative BILLED total (what exports/reports/reimbursement use).
+   * INVARIANT: for a trip with `legs`, this is the sum of each billable
+   * leg's distanceMiles, UNLESS the user instead chose to bill the
+   * direct-route figure at logging time (see `directMiles`) — either way,
+   * this field is the one number every surface trusts; nothing downstream
+   * ever recomputes it from `legs`.
+   */
   distanceMiles: number;
+  /**
+   * Optional ordered stop-by-stop breakdown for a multi-leg journey (e.g. a
+   * personal detour on the way to a billable work site). When present,
+   * `from`/`to` above still describe the overall journey's endpoints — this
+   * array is where the intermediate stops and per-leg billable flags live.
+   * Use src/lib/legs.ts helpers (billableMiles, viaLabel, routeText,
+   * legsSummary) rather than re-deriving these from `legs` ad hoc.
+   */
+  legs?: TripLeg[];
+  /**
+   * The direct-route mileage (origin straight to final destination, skipping
+   * any personal stop) captured at logging time for a stop journey, offered
+   * as an alternative billing figure to summed billable legs. Informational
+   * only — NEVER authoritative; `distanceMiles` is what actually gets billed.
+   */
+  directMiles?: number;
   /** Raw GPS-measured distance when the drive was live-tracked */
   gpsDistanceMiles?: number;
   roundTrip?: boolean;

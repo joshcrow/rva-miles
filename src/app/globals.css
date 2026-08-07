@@ -39,3 +39,30 @@ body {
     background: #fff;
   }
 }
+
+/* Route-entry settle. Each tab change remounts the template wrapper, so this
+   runs once per navigation — a short rise-and-fade that reads as an app
+   transition instead of a document swap. */
+.route-enter {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  animation: route-enter 160ms ease-out;
+}
+
+@keyframes route-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-enter {
+    animation: none;
+  }
+}

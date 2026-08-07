@@ -19,6 +19,7 @@ import {
   rangeLabelLong,
   rangeLabelShort,
   reportSubject,
+  reviewLabel,
   sanitizePayload,
   uniformRate,
 } from "../reportData";
@@ -179,6 +180,14 @@ describe("formatting", () => {
     expect(fmtMiles(1234.56)).toBe("1,234.6");
     expect(fmtMoney(0)).toBe("$0.00");
     expect(fmtMoney(1234.5)).toBe("$1,234.50");
+  });
+});
+
+describe("reviewLabel", () => {
+  it("is verb-first and counts through the shared pluralization", () => {
+    expect(reviewLabel(13)).toBe("Review 13 trips");
+    expect(reviewLabel(1)).toBe("Review 1 trip");
+    expect(reviewLabel(2)).toBe("Review 2 trips");
   });
 });
 

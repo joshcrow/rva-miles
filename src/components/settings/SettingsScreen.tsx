@@ -1,10 +1,16 @@
 "use client";
 
-// Grouped, calm settings — not v1's junk drawer. Every field auto-saves
-// (blur for free text, immediately for selects/toggles); nothing here needs
-// a Save button, and nothing here needs a confirmation dialog.
+// Two goal-based groups in the order the work happens: get the report right,
+// then keep the ledger safe. Grouping by goal rather than by object means a
+// card only has to be found once — you come here to fix a report, not to
+// visit "Profile". Below them, Appearance and InstallCoach carry no group of
+// their own — "App" never earned its keep as a goal — and a bare version
+// stamp closes the screen. Every field still auto-saves (blur for free text,
+// immediately for selects and toggles); nothing here needs a Save button, and
+// nothing here needs a confirmation dialog.
 
 import { useMemo } from "react";
+import type { ReactNode } from "react";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -14,7 +20,6 @@ import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
 import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
 import InstallCoach from "@/components/InstallCoach";
 import { todayKey } from "@/lib/dates";
-import AboutSection from "./AboutSection";
 import AppearanceSection from "./AppearanceSection";
 import DataSection from "./DataSection";
 import PayScheduleSection from "./PayScheduleSection";
@@ -24,6 +29,7 @@ import SectionLabel from "./SectionLabel";
 import SettingsSkeleton from "./SettingsSkeleton";
 import SyncSection from "./SyncSection";
 import { useSettingsData } from "./useSettingsData";
+import VersionFooter from "./VersionFooter";
 
 export function SettingsScreen() {
   const data = useSettingsData();
@@ -50,7 +56,7 @@ export function SettingsScreen() {
   }
 
   return (
-    <Stack spacing={3} sx={{ px: 2.5, pt: 2.5, pb: 4 }}>
+    <Stack spacing={3.5} sx={{ px: 2.5, pt: 2.5, pb: 4 }}>
       <Box component="header">
         <Typography variant="overline" component="p" sx={{ color: "primary.main" }}>
           RVA Miles
@@ -73,28 +79,18 @@ export function SettingsScreen() {
         </Alert>
       ) : null}
 
-      <Box>
-        <SectionLabel>Profile</SectionLabel>
+      {/* Everything that has to be right before a report goes out. */}
+      <Group title="Your report">
         <ProfileSection settings={data.settings} today={today} onPatch={data.patchSettings} />
-      </Box>
-
-      <Box>
-        <SectionLabel>Pay schedule</SectionLabel>
         <PayScheduleSection settings={data.settings} today={today} onPatch={data.patchSettings} />
-      </Box>
-
-      <Box>
-        <SectionLabel>Report recipient</SectionLabel>
         <RecipientSection settings={data.settings} onPatch={data.patchSettings} />
-      </Box>
+      </Group>
 
-      <Box>
-        <SectionLabel>Appearance</SectionLabel>
-        <AppearanceSection settings={data.settings} onPatch={data.patchSettings} />
-      </Box>
-
-      <Box>
-        <SectionLabel>Data</SectionLabel>
+      {/* Where the ledger lives, and the two ways to move it. The storage fact
+          leads the group because it is the reason backup and sync exist. Sync
+          only ever appears as a card inside here — this caption stays silent
+          on it, so an unconfigured build never names a thing it can't show. */}
+      <Group title="Your data" caption="Your trips are stored on this device, not on a server.">
         <DataSection
           settings={data.settings}
           tripCount={data.tripCount}
@@ -103,22 +99,43 @@ export function SettingsScreen() {
           onPatch={data.patchSettings}
           onRefresh={data.refresh}
         />
-      </Box>
-
-      {data.syncConfigured ? (
-        <Box>
-          <SectionLabel>Sync between devices</SectionLabel>
+        {data.syncConfigured ? (
           <SyncSection settings={data.settings} onPatch={data.patchSettings} onRefresh={data.refresh} />
-        </Box>
-      ) : null}
+        ) : null}
+      </Group>
 
-      <InstallCoach />
+      {/* No group label: "App" never named a goal, just a leftover object.
+          InstallCoach renders nothing once installed or dismissed, so it goes
+          last — anywhere earlier would leave a gap between neighbors when it
+          disappears. */}
+      <Stack spacing={1.5}>
+        <AppearanceSection settings={data.settings} onPatch={data.patchSettings} />
+        <InstallCoach />
+      </Stack>
 
-      <Box>
-        <SectionLabel>About</SectionLabel>
-        <AboutSection />
-      </Box>
+      <VersionFooter />
     </Stack>
+  );
+}
+
+interface GroupProps {
+  title: string;
+  /** Optional fact that frames the whole group. Never a restatement of a control inside it. */
+  caption?: string;
+  children: ReactNode;
+}
+
+function Group({ title, caption, children }: GroupProps) {
+  return (
+    <Box>
+      <SectionLabel component="h2">{title}</SectionLabel>
+      {caption ? (
+        <Typography variant="body2" color="text.secondary" sx={{ px: 0.5, mb: 1.5 }}>
+          {caption}
+        </Typography>
+      ) : null}
+      <Stack spacing={1.5}>{children}</Stack>
+    </Box>
   );
 }
 

@@ -1,11 +1,12 @@
 // Pure report math + formatting, shared by the /report screen and the
 // standalone /r viewer (which runs with zero database access).
 //
-// Rounding here MIRRORS src/lib/exporters.ts exactly — round each row, then
-// sum the rounded rows — so the total on screen, in the email body, in the
-// CSV, in the XLSX and in the shared link is always the same number. Accounts
-// payable reconciles these by hand; a one-cent drift between two of them is a
-// support ticket.
+// This module owns no arithmetic. Every mile and every cent comes from
+// src/lib/money.ts — round each row, then sum the rounded rows — so the total
+// on screen, in the email body, in the CSV, in the XLSX and in the shared link
+// is always the same number produced by the same function. Accounts payable
+// reconciles these by hand; a one-cent drift between two of them is a support
+// ticket.
 //
 // Number formatting is done by hand (never toLocaleString) so server and
 // client render byte-identical strings.
@@ -15,7 +16,7 @@ import { isKeyInRange } from "@/lib/dates";
 import type { ReportMeta } from "@/lib/exporters";
 import { routeText } from "@/lib/legs";
 import { formatRate } from "@/lib/rates";
-import { fmtMiles, fmtMoney, roundTo, tripAmount } from "@/lib/money";
+import { fmtMiles, fmtMoney, roundTo, totalsOf, tripAmount, type Totals } from "@/lib/money";
 
 export const CUSTOM_PRESET_LABEL = "Custom";
 
@@ -25,7 +26,11 @@ const MONTHS_SHORT = [
 
 const DATE_KEY_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 
-export { roundTo, fmtMiles, fmtMoney };
+// Report vocabulary over the money module's originals — aliases, not copies.
+// `computeTotals` was a line-for-line duplicate of `totalsOf`; two identical
+// implementations of the number she sends is one too many.
+export { roundTo, fmtMiles, fmtMoney, totalsOf as computeTotals };
+export type { Totals as ReportTotals };
 
 // --- date keys (string parsing only — never new Date('YYYY-MM-DD')) --------
 
@@ -108,6 +113,15 @@ export function pluralTrips(n: number): string {
   return n === 1 ? "1 trip" : `${n} trips`;
 }
 
+/**
+ * The label on the row that hides the trip table: "Review 13 trips". Verb
+ * first — the row is an action she may or may not take, not a heading for a
+ * section she is already reading.
+ */
+export function reviewLabel(n: number): string {
+  return `Review ${pluralTrips(n)}`;
+}
+
 // --- places ----------------------------------------------------------------
 
 export function placeLabel(p: Place | undefined): string {
@@ -148,26 +162,10 @@ export function sortForReport(trips: Trip[]): Trip[] {
 }
 
 // --- totals ----------------------------------------------------------------
-
-export interface ReportTotals {
-  count: number;
-  miles: number;
-  money: number;
-}
-
-/**
- * Row-level rounding, then a running rounded sum — byte-identical to the
- * totals row that buildCsv / buildXlsx / buildSummaryText print.
- */
-export function computeTotals(trips: Trip[]): ReportTotals {
-  let miles = 0;
-  let money = 0;
-  for (const t of trips) {
-    miles = roundTo(miles + roundTo(t.distanceMiles, 1), 1);
-    money = roundTo(money + tripAmount(t), 2);
-  }
-  return { count: trips.length, miles, money };
-}
+// computeTotals / ReportTotals are `totalsOf` / `Totals` from @/lib/money,
+// re-exported above. Row-level rounding then a running rounded sum, which is
+// byte-identical to the totals row buildCsv / buildXlsx / buildSummaryText
+// print because it is the same code path.
 
 /** The single rate every trip in the report used, or null when they differ. */
 export function uniformRate(trips: Trip[]): number | null {
@@ -327,7 +325,7 @@ export function displayRows(trips: Trip[]): DisplayRow[] {
 /** Tab-separated — pastes straight into Sheets/Excel as real columns. */
 export function buildTsv(trips: Trip[], meta: ReportMeta): string {
   const rows = displayRows(trips);
-  const totals = computeTotals(trips);
+  const totals = totalsOf(trips);
   const lines: string[] = [];
   lines.push([...REPORT_COLUMNS].join("\t"));
   for (const r of rows) {
@@ -348,7 +346,7 @@ export function buildTsv(trips: Trip[], meta: ReportMeta): string {
  * supporting detail, which is why they hang off a middle dot rather than a
  * third em dash flattening all three to the same weight.
  */
-export function reportSubject(meta: ReportMeta, totals: ReportTotals): string {
+export function reportSubject(meta: ReportMeta, totals: Totals): string {
   const who = meta.ownerName ? `${meta.ownerName} — ` : "";
   return `Mileage report — ${who}${rangeLabelLong(meta.range)} · ${fmtMiles(totals.miles)} mi · ${fmtMoney(
     totals.money,
@@ -356,7 +354,7 @@ export function reportSubject(meta: ReportMeta, totals: ReportTotals): string {
 }
 
 /** One-line-per-fact body for share sheets, where a wide table would wrap badly. */
-export function shareText(meta: ReportMeta, totals: ReportTotals, link: string | null): string {
+export function shareText(meta: ReportMeta, totals: Totals, link: string | null): string {
   const lines = [
     reportSubject(meta, totals),
     "",

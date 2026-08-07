@@ -2,6 +2,11 @@
 
 // Flow 4, "payday send": pick a period, look at the two numbers, send it.
 //
+// The order of this screen is the argument it makes. Period, then the number,
+// then the send button — the verb is above the fold whatever the period holds.
+// The trip list is the evidence behind that number, so it comes last, folded
+// behind one "Review N trips" row.
+//
 // Every artifact this screen produces — the summary card, the XLSX, the CSV,
 // the mail body and the shared link — is built from ONE filtered trip list and
 // ONE rounding pass, so they can never disagree with each other.
@@ -13,12 +18,14 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
 import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
-import type { DateRange, ReportPayload } from "@/types";
+import type { DateRange, ReportPayload, Trip } from "@/types";
 import { periodPresets } from "@/lib/periods";
+import { putTrip, softDeleteTrip, undeleteTrip } from "@/lib/db";
 import { buildXlsx, reportFilename } from "@/lib/exporters";
 import { reportUrl } from "@/lib/reportlink";
 import { canShareFiles, shareFiles } from "@/lib/share";
 import { uiActions } from "@/stores/ui";
+import EditTripSheet from "@/components/trips/EditTripSheet";
 import EmptyRange from "./EmptyRange";
 import PeriodPicker from "./PeriodPicker";
 import ReportActions from "./ReportActions";
@@ -34,6 +41,7 @@ import {
   computeTotals,
   filterTripsInRange,
   normalizeRange,
+  placeLabelShort,
   reportSubject,
   shareText,
   uniformRate,
@@ -48,6 +56,8 @@ export function ReportScreen() {
   const [customRange, setCustomRange] = useState<DateRange | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [editTrip, setEditTrip] = useState<Trip | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
   const [link, setLink] = useState<string | null>(null);
   const [linkError, setLinkError] = useState<string | null>(null);
 
@@ -130,6 +140,65 @@ export function ReportScreen() {
   const handleWiden = useCallback(() => {
     setSelected(LAST_30_LABEL);
   }, []);
+
+  // --- fixing a row before sending it ---------------------------------------
+  // Deliberately two steps: tap the row, edit in the sheet. No swipes and no
+  // long-press here — a gesture that deletes a trip while she is reviewing the
+  // number she is about to send is the wrong kind of fast.
+  //
+  // Every write goes to the database first, then re-reads the ledger, so the
+  // summary, the spreadsheet and the link are all rebuilt from what is
+  // actually stored — never from an optimistic guess about it.
+
+  const openEdit = useCallback((trip: Trip) => {
+    setEditTrip(trip);
+    setEditOpen(true);
+  }, []);
+
+  const saveTrip = useCallback(
+    async (next: Trip): Promise<boolean> => {
+      try {
+        await putTrip(next);
+      } catch (err) {
+        uiActions.showError(err, "Couldn't save that trip. Nothing was lost — try again.");
+        return false;
+      }
+      await refresh();
+      uiActions.showSnack("Trip updated", "success");
+      return true;
+    },
+    [refresh],
+  );
+
+  const deleteTrip = useCallback(
+    (trip: Trip) => {
+      setEditOpen(false);
+      void (async () => {
+        try {
+          await softDeleteTrip(trip.id);
+        } catch (err) {
+          uiActions.showError(err, "Couldn't delete that trip — it's still on your report.");
+          await refresh();
+          return;
+        }
+        await refresh();
+        uiActions.showUndo(`Deleted ${placeLabelShort(trip.to)} trip`, () => {
+          void (async () => {
+            try {
+              await undeleteTrip(trip.id);
+            } catch (err) {
+              uiActions.showError(err, "Couldn't restore that trip.");
+              await refresh();
+              return;
+            }
+            await refresh();
+            uiActions.showSnack("Trip restored", "success");
+          })();
+        });
+      })();
+    },
+    [refresh],
+  );
 
   async function handleShare() {
     if (filtered.length === 0 || sharing) return;
@@ -221,15 +290,32 @@ export function ReportScreen() {
               vehicle={meta.vehicle}
               rate={rate}
             />
-            <TripPreviewTable trips={filtered} />
             <ReportActions
               onShare={() => void handleShare()}
               onMore={() => setSheetOpen(true)}
               sharing={sharing}
             />
+            {/* Keyed by period: switching periods re-decides whether a short
+                list opens on its own, while a manual toggle sticks within
+                the period she is reviewing. */}
+            <TripPreviewTable
+              key={`${range.startKey}:${range.endKey}`}
+              trips={filtered}
+              onEditTrip={openEdit}
+            />
           </>
         )}
       </Stack>
+
+      <EditTripSheet
+        open={editOpen}
+        trip={editTrip}
+        today={today}
+        settings={settings}
+        onClose={() => setEditOpen(false)}
+        onSave={saveTrip}
+        onDelete={deleteTrip}
+      />
 
       <ShareSheet
         open={sheetOpen && !isEmpty}

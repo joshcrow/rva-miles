@@ -26,13 +26,33 @@ export function lastSyncedLabel(at: number | undefined, now: number): string {
   return `Synced ${days} days ago`;
 }
 
-const BACKUP_STALE_DAYS = 14;
+const BACKUP_STALE_DAYS = 30;
+const NEVER_BACKED_UP_TRIP_FLOOR = 10;
+const RECENT_SYNC_DAYS = 7;
 
-/** Amber "overdue" warning only makes sense once there's something to lose. */
-export function isBackupStale(lastBackupAt: number | undefined, hasTrips: boolean, now: number): boolean {
-  if (!hasTrips) return false;
-  if (!lastBackupAt) return true;
-  return now - lastBackupAt > BACKUP_STALE_DAYS * DAY_MS;
+/**
+ * The one-line backup nudge, or null when there's nothing worth saying.
+ * Calibrated so a day-one user is never alarmed: it speaks only when real
+ * data is genuinely exposed — and says exactly what's at stake, never
+ * "overdue" (the user owes the app nothing). A recent sync suppresses it,
+ * because "exists only on this phone" would then be false.
+ */
+export function backupNudge(
+  lastBackupAt: number | undefined,
+  lastSyncAt: number | undefined,
+  tripCount: number,
+  now: number,
+): string | null {
+  if (tripCount === 0) return null;
+  if (lastSyncAt && now - lastSyncAt <= RECENT_SYNC_DAYS * DAY_MS) return null;
+  if (!lastBackupAt) {
+    if (tripCount < NEVER_BACKED_UP_TRIP_FLOOR) return null;
+    return `Your ${tripCount} trips exist only on this phone.`;
+  }
+  if (now - lastBackupAt > BACKUP_STALE_DAYS * DAY_MS) {
+    return "Trips logged since then exist only on this phone.";
+  }
+  return null;
 }
 
 const BYTE_UNITS = ["B", "KB", "MB", "GB"] as const;

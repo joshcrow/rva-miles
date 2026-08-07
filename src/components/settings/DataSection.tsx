@@ -11,7 +11,6 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
-import Chip from "@mui/material/Chip";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import type { ReactNode } from "react";
@@ -27,7 +26,7 @@ import { fmtMiles } from "@/lib/money";
 import { canShareFiles, downloadBlob, shareFiles } from "@/lib/share";
 import { uiActions } from "@/stores/ui";
 import ImportPreviewSheet from "./ImportPreviewSheet";
-import { daysAgoLabel, isBackupStale, mergePreviewText, mergeResultText } from "./settingsLogic";
+import { backupNudge, daysAgoLabel, mergePreviewText, mergeResultText } from "./settingsLogic";
 
 export interface DataSectionProps {
   settings: Settings;
@@ -74,7 +73,7 @@ export function DataSection({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const now = Date.now();
 
-  const stale = isBackupStale(settings.lastBackupAt, tripCount > 0, now);
+  const nudge = backupNudge(settings.lastBackupAt, settings.lastSyncAt, tripCount, now);
 
   const handleBackup = useCallback(async () => {
     setBackingUp(true);
@@ -202,11 +201,15 @@ export function DataSection({
             }}
           />
 
-          <Stack direction="row" spacing={1} alignItems="center">
+          <Stack spacing={0.25}>
             <Typography variant="caption" color="text.secondary">
               Last backup: {daysAgoLabel(settings.lastBackupAt, now)}
             </Typography>
-            {stale ? <Chip size="small" color="warning" label="Overdue" /> : null}
+            {nudge ? (
+              <Typography variant="caption" sx={{ color: "warning.main" }}>
+                {nudge}
+              </Typography>
+            ) : null}
           </Stack>
         </Stack>
       </CardContent>

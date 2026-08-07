@@ -3,7 +3,7 @@ import {
   daysAgoLabel,
   formatBytes,
   generateSyncCode,
-  isBackupStale,
+  backupNudge,
   isDateKeyString,
   lastSyncedLabel,
   mergePreviewText,
@@ -47,22 +47,36 @@ describe("lastSyncedLabel", () => {
   });
 });
 
-describe("isBackupStale", () => {
-  const now = Date.now();
-  it("false when there are no trips", () => {
-    expect(isBackupStale(undefined, false, now)).toBe(false);
+describe("backupNudge", () => {
+  const now = 1_700_000_000_000;
+
+  it("stays silent with no trips", () => {
+    expect(backupNudge(undefined, undefined, 0, now)).toBeNull();
   });
-  it("true when trips exist and never backed up", () => {
-    expect(isBackupStale(undefined, true, now)).toBe(true);
+
+  it("stays silent for a young never-backed-up ledger", () => {
+    expect(backupNudge(undefined, undefined, 3, now)).toBeNull();
   });
-  it("false within 14 days", () => {
-    expect(isBackupStale(now - 5 * DAY_MS, true, now)).toBe(false);
+
+  it("speaks once a never-backed-up ledger has real data, naming the stakes", () => {
+    expect(backupNudge(undefined, undefined, 12, now)).toBe("Your 12 trips exist only on this phone.");
   });
-  it("true after 14 days", () => {
-    expect(isBackupStale(now - 15 * DAY_MS, true, now)).toBe(true);
+
+  it("stays silent when the last backup is recent", () => {
+    expect(backupNudge(now - 5 * DAY_MS, undefined, 40, now)).toBeNull();
+  });
+
+  it("speaks when the last backup is over 30 days old", () => {
+    expect(backupNudge(now - 31 * DAY_MS, undefined, 40, now)).toBe(
+      "Trips logged since then exist only on this phone.",
+    );
+  });
+
+  it("a recent sync suppresses the nudge — the data is not only on this phone", () => {
+    expect(backupNudge(undefined, now - 2 * DAY_MS, 40, now)).toBeNull();
+    expect(backupNudge(now - 60 * DAY_MS, now - 2 * DAY_MS, 40, now)).toBeNull();
   });
 });
-
 describe("formatBytes", () => {
   it("handles zero", () => {
     expect(formatBytes(0)).toBe("0 B");

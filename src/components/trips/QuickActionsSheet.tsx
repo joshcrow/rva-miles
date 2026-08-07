@@ -118,7 +118,7 @@ export function QuickActionsSheet({ open, trip, onClose, onRepeat, onDelete }: Q
         <ActionRow
           icon={<DeleteRoundedIcon fontSize="small" />}
           label="Delete"
-          hint="Removes it instantly — undo from the snackbar"
+          hint="Removes it now — you'll get an undo"
           danger
           onClick={onDelete}
         />

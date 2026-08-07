@@ -117,7 +117,7 @@ export function EditRouteSheet({ open, route, onClose, onSave, onArchive }: Edit
           }
           error={form.distance.length > 0 && !distanceValid}
           helperText={
-            form.distance.length > 0 && !distanceValid ? "Enter a distance greater than 0" : " "
+            form.distance.length > 0 && !distanceValid ? "Enter a distance greater than 0." : " "
           }
           fullWidth
           slotProps={{
@@ -135,8 +135,8 @@ export function EditRouteSheet({ open, route, onClose, onSave, onArchive }: Edit
               </Typography>
               <Typography variant="caption" component="span" color="text.secondary">
                 {distanceValid
-                  ? `One tap logs ${(parsed * 2).toFixed(1)} mi`
-                  : "One tap logs double the distance"}
+                  ? `One tap logs ${(parsed * 2).toFixed(1)} mi.`
+                  : "One tap logs double the distance."}
               </Typography>
             </Stack>
           }
@@ -150,7 +150,7 @@ export function EditRouteSheet({ open, route, onClose, onSave, onArchive }: Edit
           onClick={() => route && onArchive(route)}
           sx={{ alignSelf: "flex-start" }}
         >
-          Archive this tile
+          Archive this route
         </Button>
       </Stack>
     </Sheet>

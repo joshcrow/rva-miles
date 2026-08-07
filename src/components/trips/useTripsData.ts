@@ -76,7 +76,7 @@ export function useTripsData(): TripsDataApi {
       setLoadError(null);
     } catch (err) {
       if (!alive.current || seq !== monthFetchSeq.current) return;
-      setLoadError(err instanceof Error ? err.message : "Couldn't read your trips.");
+      setLoadError("Couldn't read your trips.");
       uiActions.showError(err, "Couldn't read your trips.");
     } finally {
       if (alive.current && seq === monthFetchSeq.current) setMonthLoading(false);

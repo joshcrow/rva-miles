@@ -161,7 +161,7 @@ export function DriveCockpit({
         <Stack direction="row" spacing={0.75} alignItems="center" sx={{ color: STAGE_FAINT }}>
           <GpsFixedRounded sx={{ fontSize: 15 }} />
           <Typography variant="caption" sx={{ fontVariantNumeric: "tabular-nums" }}>
-            {accuracy != null ? `GPS accuracy ±${Math.round(accuracy)} m` : "Waiting for accuracy"}
+            {accuracy != null ? `GPS accuracy ±${Math.round(accuracy)} m` : "Waiting for a fix"}
           </Typography>
         </Stack>
 

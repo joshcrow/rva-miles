@@ -7,6 +7,7 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import type { ActiveDrive, Settings } from "@/types";
 import { clearActiveDrive, getSettings, saveActiveDrive } from "@/lib/db";
+import { isUserFacing } from "@/lib/errors";
 import { currentDefaultRate } from "@/lib/rates";
 import { recoverActiveDrive, useDriveTracking, type CompletedDrive } from "@/lib/tracking";
 import { uiActions } from "@/stores/ui";
@@ -128,7 +129,7 @@ export default function DrivePage() {
       ownsActiveRow.current = true;
       setActive(true);
     } catch (err) {
-      setStartError(err instanceof Error ? err.message : "Couldn't start GPS tracking.");
+      setStartError(isUserFacing(err) ? err.message : "Couldn't start GPS tracking.");
     } finally {
       setStarting(false);
     }
@@ -154,7 +155,7 @@ export default function DrivePage() {
       // The row survives a failed clear, so hand the drive back through recovery
       // instead of dropping it.
       setActive(false);
-      uiActions.showError(err, "Couldn't finish the drive cleanly.");
+      uiActions.showError(err, "Couldn't finish that drive — it's still here to resume or save.");
       try {
         const stranded = await recoverActiveDrive();
         if (stranded) {
@@ -163,7 +164,7 @@ export default function DrivePage() {
           setResumeOpen(true);
         }
       } catch {
-        uiActions.showError("Your drive may not have been saved. Check Trips before driving on.");
+        uiActions.showError("Couldn't recover that drive. Check Trips before you drive on.");
       }
     } finally {
       setStopping(false);

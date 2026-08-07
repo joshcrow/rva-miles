@@ -59,7 +59,7 @@ export function useSettingsData(): SettingsDataApi {
       setLoadError(null);
     } catch (err) {
       if (!alive.current) return;
-      const message = err instanceof Error ? err.message : "Couldn't read your settings.";
+      const message = "Couldn't read your settings.";
       setLoadError(message);
       uiActions.showError(err, "Couldn't read your settings.");
     }

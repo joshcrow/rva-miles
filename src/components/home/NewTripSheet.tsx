@@ -226,7 +226,7 @@ export function NewTripSheet({
   const manualHint = useMemo(() => {
     if (hasStops) return null;
     if (segs[0]?.status === "unavailable") {
-      return "Couldn't reach the routing service — type the miles and log it anyway.";
+      return "Couldn't measure that route — type the miles and log it anyway.";
     }
     if (from && to && (!from.latLng || !to.latLng)) {
       return "No map pin for one of these places — type the miles yourself.";
@@ -364,7 +364,7 @@ export function NewTripSheet({
     ? `Continuing from ${continuingFrom}`
     : hasStops
       ? "One entry, billed leg by leg"
-      : "Logged once, then it's a tile forever";
+      : "Logged once, then one tap after that";
 
   const setSegField = (index: number, patch: Partial<Seg>) =>
     setSegs((prev) => prev.map((s, i) => (i === index ? { ...s, ...patch } : s)));
@@ -513,7 +513,7 @@ export function NewTripSheet({
                   : seg.status === "resolving"
                     ? "Measuring road route…"
                     : seg.status === "unavailable"
-                      ? "Couldn't reach routing — type the miles"
+                      ? "Couldn't measure this leg — type the miles"
                       : seg.status === "idle" && !seg.distance
                         ? "No map pin — type the miles"
                         : "";
@@ -646,7 +646,7 @@ export function NewTripSheet({
               </Typography>
               <Chip
                 size="small"
-                label={billingDirect ? "Billing direct" : "Use direct"}
+                label="Bill the direct route"
                 aria-pressed={billingDirect}
                 onClick={() => setUseDirect((v) => !v)}
                 color={billingDirect ? "primary" : "default"}

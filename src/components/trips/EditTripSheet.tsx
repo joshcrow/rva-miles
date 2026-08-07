@@ -176,7 +176,7 @@ export function EditTripSheet({ open, trip, today, settings, onClose, onSave, on
           >
             <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
               <Typography variant="overline" color="text.secondary">
-                Stops
+                Legs
               </Typography>
               <Typography variant="caption" color="text.secondary">
                 {`${billedLegCount} of ${legs.length} legs billed`}
@@ -246,9 +246,9 @@ export function EditTripSheet({ open, trip, today, settings, onClose, onSave, on
           error={form.distance.length > 0 && !distanceValid}
           helperText={
             form.distance.length > 0 && !distanceValid
-              ? "Enter a distance greater than 0"
+              ? "Enter a distance greater than 0."
               : hasLegs
-                ? "The billed total — edit it directly to override the legs above"
+                ? "The billed total — edit it directly to override the legs above."
                 : " "
           }
           fullWidth
@@ -265,7 +265,7 @@ export function EditTripSheet({ open, trip, today, settings, onClose, onSave, on
           error={form.rate.length > 0 && !rateValid}
           helperText={
             form.rate.length > 0 && !rateValid
-              ? "Enter a rate of 0 or more"
+              ? "Enter a rate of 0 or more."
               : `Current default: ${fmtRate(settings.ratePerMile)}`
           }
           fullWidth
@@ -308,7 +308,7 @@ export function EditTripSheet({ open, trip, today, settings, onClose, onSave, on
                   Round trip
                 </Typography>
                 <Typography variant="caption" component="span" color="text.secondary">
-                  Just a label here — edit Miles above if the distance should change
+                  Just a label here — edit Miles above if the distance should change.
                 </Typography>
               </Stack>
             }

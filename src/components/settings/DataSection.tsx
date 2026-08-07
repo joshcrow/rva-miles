@@ -26,7 +26,7 @@ import { todayKey } from "@/lib/dates";
 import { canShareFiles, downloadBlob, shareFiles } from "@/lib/share";
 import { uiActions } from "@/stores/ui";
 import ImportPreviewSheet from "./ImportPreviewSheet";
-import { daysAgoLabel, formatBytes, isBackupStale, mergePreviewText } from "./settingsLogic";
+import { daysAgoLabel, formatBytes, isBackupStale, mergePreviewText, mergeResultText } from "./settingsLogic";
 
 export interface DataSectionProps {
   settings: Settings;
@@ -95,7 +95,7 @@ export function DataSection({
     try {
       parsed = JSON.parse(await file.text());
     } catch {
-      uiActions.showError("That file isn't valid JSON — pick a backup exported from RVA Miles.");
+      uiActions.showError("That file isn't an RVA Miles backup — pick a file saved by Back up now.");
       return;
     }
 
@@ -106,7 +106,10 @@ export function DataSection({
     try {
       snapshot = validateSnapshot(parsed);
     } catch (err) {
-      uiActions.showError(err, "That doesn't look like an RVA Miles backup file.");
+      uiActions.showError(
+        err,
+        "That backup can't be read. It may be damaged, or saved by a different version of RVA Miles.",
+      );
       return;
     }
 
@@ -122,7 +125,7 @@ export function DataSection({
         routesUpdated: routePlan.updated,
       });
     } catch (err) {
-      uiActions.showError(err, "Couldn't read your current trips to compare against.");
+      uiActions.showError(err, "Couldn't read your current trips to compare against. Nothing was imported.");
       return;
     }
 
@@ -141,7 +144,7 @@ export function DataSection({
         const result: MergeResult = await importMerge(pending.snapshot);
         setPending(null);
         await onRefresh();
-        uiActions.showSnack(`Import complete — ${mergePreviewText(result)}`, "success");
+        uiActions.showSnack(`Import complete — ${mergeResultText(result)}`, "success");
       } catch (err) {
         uiActions.showError(err, "Couldn't import that backup.");
       } finally {

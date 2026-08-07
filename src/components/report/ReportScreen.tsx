@@ -102,10 +102,11 @@ export function ReportScreen() {
       }
       return url;
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Couldn't build the report link.";
+      // Encoding failures are internal; the sender gets the written sentence.
+      console.error("RVA Miles: couldn't build the report link", err);
       if (latestPayload.current === payload) {
         setLink(null);
-        setLinkError(message);
+        setLinkError("Couldn't build the report link.");
       }
       return null;
     }
@@ -194,9 +195,6 @@ export function ReportScreen() {
           </Typography>
           <Typography variant="h3" component="h1" sx={{ mt: 0.25 }}>
             Report
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-            Pick a period, check the total, send it.
           </Typography>
         </Box>
 

@@ -58,7 +58,7 @@ export function EmptyRange({ range, onWiden, widenLabel }: EmptyRangeProps) {
         Nothing in this range
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mt: 1, mx: "auto", maxWidth: 300 }}>
-        {`No trips are logged between ${rangeLabelLong(range)}. Pick a different period, or add the drives you missed.`}
+        {`No trips are logged in ${rangeLabelLong(range)}. Pick a different period, or add the drives you missed.`}
       </Typography>
 
       <Stack spacing={1.25} sx={{ mt: 3, mx: "auto", maxWidth: 300 }}>

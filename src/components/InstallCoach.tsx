@@ -130,7 +130,7 @@ export function InstallCoach({ compact = false }: InstallCoachProps) {
         uiActions.showSnack("Installing RVA Miles…", "success");
       }
     } catch (err) {
-      uiActions.showError(err, "Install prompt unavailable.");
+      uiActions.showError(err, "Couldn't open the install prompt.");
     }
   }, []);
 
@@ -174,7 +174,7 @@ export function InstallCoach({ compact = false }: InstallCoachProps) {
             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
               {ios
                 ? "Add it to your Home Screen — it opens full screen and works offline."
-                : "Install it — full screen, offline-ready, no browser bars."}
+                : "Install it — full screen, works offline, no browser bars."}
             </Typography>
 
             {ios ? (

@@ -130,16 +130,16 @@ describe("buildCsv", () => {
 });
 
 describe("buildSummaryText", () => {
-  it("includes title, period, owner, vehicle, and an aligned table with matching-width rows", () => {
+  it("includes title, period, driver, vehicle, and an aligned table with matching-width rows", () => {
     const trips = [
       makeTrip({ dateKey: "2026-08-01", distanceMiles: 10, ratePerMile: 0.5, purpose: "Site visit" }),
       makeTrip({ dateKey: "2026-08-05", distanceMiles: 3.25, ratePerMile: 0.5, purpose: "Supply run" }),
     ];
     const text = buildSummaryText(trips, meta);
     expect(text).toContain("Pay Period Report");
-    expect(text).toContain("Owner: Dana Smith");
+    expect(text).toContain("Driver: Dana Smith");
     expect(text).toContain("Vehicle: Honda CR-V");
-    expect(text).toContain("Period: Aug 1, 2026 - Aug 15, 2026");
+    expect(text).toContain("Period: Aug 1, 2026 – Aug 15, 2026");
 
     const lines = text.split("\n");
     const headerIdx = lines.findIndex((l) => l.startsWith("Date"));
@@ -154,15 +154,15 @@ describe("buildSummaryText", () => {
     expect(totalsLine.length).toBe(headerLine.length);
     expect(totalsLine).toContain("Totals");
 
-    expect(text).toMatch(/2 trips • 13\.3 miles • \$6\.63 total/);
+    expect(text).toMatch(/2 trips · 13\.3 miles · \$6\.63/);
   });
 
-  it("omits owner/vehicle lines when not provided and still renders a valid table", () => {
+  it("omits driver/vehicle lines when not provided and still renders a valid table", () => {
     const bareMeta: ReportMeta = { title: "Untitled", range: { startKey: "2026-08-01", endKey: "2026-08-01" } };
     const text = buildSummaryText([], bareMeta);
-    expect(text).not.toContain("Owner:");
+    expect(text).not.toContain("Driver:");
     expect(text).not.toContain("Vehicle:");
-    expect(text).toMatch(/0 trips • 0\.0 miles • \$0\.00 total/);
+    expect(text).toMatch(/0 trips · 0\.0 miles · \$0\.00/);
   });
 });
 
@@ -331,12 +331,24 @@ describe("multi-leg trips (To column reads the route, not just the endpoint)", (
 });
 
 describe("reportFilename", () => {
-  it("builds rva-miles-<startKey>_<endKey>.<ext>", () => {
-    expect(reportFilename(meta, "csv")).toBe("rva-miles-2026-08-01_2026-08-15.csv");
-    expect(reportFilename(meta, "xlsx")).toBe("rva-miles-2026-08-01_2026-08-15.xlsx");
+  // This name is read in the manager's Downloads folder beside other people's
+  // reports, so it leads with the document and the driver, not the app.
+  it("builds mileage-<driver>-<start>-to-<end>.<ext>", () => {
+    expect(reportFilename(meta, "csv")).toBe("mileage-dana-smith-2026-08-01-to-2026-08-15.csv");
+    expect(reportFilename(meta, "xlsx")).toBe("mileage-dana-smith-2026-08-01-to-2026-08-15.xlsx");
+  });
+
+  it("drops the driver segment when no name is set, rather than leaving a gap", () => {
+    const anonymous: ReportMeta = { title: "Mileage Report", range: meta.range };
+    expect(reportFilename(anonymous, "csv")).toBe("mileage-2026-08-01-to-2026-08-15.csv");
+  });
+
+  it("slugs punctuation and accents out of the driver's name", () => {
+    const accented: ReportMeta = { ...meta, ownerName: "Renée O'Brien-Smith" };
+    expect(reportFilename(accented, "csv")).toBe("mileage-renee-o-brien-smith-2026-08-01-to-2026-08-15.csv");
   });
 
   it("strips a leading dot from the extension if the caller passed one", () => {
-    expect(reportFilename(meta, ".csv")).toBe("rva-miles-2026-08-01_2026-08-15.csv");
+    expect(reportFilename(meta, ".csv")).toBe("mileage-dana-smith-2026-08-01-to-2026-08-15.csv");
   });
 });

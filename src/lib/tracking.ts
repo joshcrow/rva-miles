@@ -20,6 +20,7 @@ import type { ActiveDrive, DriveStatus, GpsPoint, LatLng } from "@/types";
 import { acceptFix, haversineMiles, simplifyTrack } from "./geo";
 import { clearActiveDrive, getActiveDrive, saveActiveDrive } from "./db";
 import { newId } from "./ids";
+import { UserFacingError } from "./errors";
 import { uiActions } from "@/stores/ui";
 
 export interface CompletedDrive {
@@ -58,17 +59,18 @@ function getCurrentPositionAsync(options: PositionOptions): Promise<GeolocationP
   });
 }
 
-function friendlyGeoError(err: unknown): Error {
+/** Written for the driver, so it is marked as copy and shown verbatim. */
+function friendlyGeoError(err: unknown): UserFacingError {
   const code = err && typeof err === "object" && "code" in err ? (err as GeolocationPositionError).code : undefined;
   switch (code) {
     case 1: // PERMISSION_DENIED
-      return new Error("Location access is off. Turn on location for this browser to start a drive.");
+      return new UserFacingError("Location access is off. Turn on location for this browser to start a drive.");
     case 2: // POSITION_UNAVAILABLE
-      return new Error("Couldn't get a GPS fix. Try again somewhere with a clearer view of the sky.");
+      return new UserFacingError("Couldn't get a GPS fix. Try again somewhere with a clearer view of the sky.");
     case 3: // TIMEOUT
-      return new Error("GPS took too long to respond. Try again in a moment.");
+      return new UserFacingError("GPS took too long to respond. Try again in a moment.");
     default:
-      return new Error("Couldn't start GPS tracking.");
+      return new UserFacingError("Couldn't start GPS tracking.");
   }
 }
 
@@ -253,7 +255,7 @@ export function useDriveTracking(): DriveTrackingApi {
 
   async function start(vehicle?: string): Promise<void> {
     if (typeof navigator === "undefined" || !navigator.geolocation) {
-      throw new Error("This device doesn't support GPS location.");
+      throw new UserFacingError("This device doesn't support GPS location.");
     }
     resetDisplayState();
     setStatus("acquiring");

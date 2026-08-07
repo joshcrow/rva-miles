@@ -18,8 +18,9 @@ import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded";
 import SyncRoundedIcon from "@mui/icons-material/SyncRounded";
 import type { MergeResult, Settings, Snapshot } from "@/types";
 import { exportSnapshot, importMerge } from "@/lib/db";
+import { UserFacingError } from "@/lib/errors";
 import { uiActions } from "@/stores/ui";
-import { generateSyncCode, lastSyncedLabel, mergePreviewText } from "./settingsLogic";
+import { generateSyncCode, lastSyncedLabel, mergeResultText } from "./settingsLogic";
 
 export interface SyncSectionProps {
   settings: Settings;
@@ -32,7 +33,7 @@ async function copyToClipboard(text: string): Promise<void> {
     await navigator.clipboard.writeText(text);
     return;
   }
-  throw new Error("Clipboard isn't available here — copy the code by hand.");
+  throw new UserFacingError("Clipboard isn't available here — copy the code by hand.");
 }
 
 export function SyncSection({ settings, onPatch, onRefresh }: SyncSectionProps) {
@@ -74,7 +75,7 @@ export function SyncSection({ settings, onPatch, onRefresh }: SyncSectionProps) 
         const remote = (await res.json()) as Snapshot;
         result = await importMerge(remote);
       } else if (res.status !== 404) {
-        throw new Error("The sync server isn't responding right now.");
+        throw new UserFacingError("The sync server isn't responding right now.");
       }
 
       const snapshot = await exportSnapshot();
@@ -83,11 +84,14 @@ export function SyncSection({ settings, onPatch, onRefresh }: SyncSectionProps) 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(snapshot),
       });
-      if (!put.ok) throw new Error("Couldn't save your data to the sync server.");
+      if (!put.ok) throw new UserFacingError("Couldn't save your trips to the sync server.");
 
       await onPatch({ lastSyncAt: Date.now() });
       await onRefresh();
-      uiActions.showSnack(`Synced — ${mergePreviewText(result)}`, "success");
+      uiActions.showSnack(
+        `Synced — ${mergeResultText(result, "nothing new from your other phone")}`,
+        "success",
+      );
     } catch (err) {
       uiActions.showError(err, "Couldn't sync right now.");
     } finally {
@@ -100,8 +104,8 @@ export function SyncSection({ settings, onPatch, onRefresh }: SyncSectionProps) 
       <CardContent>
         <Stack spacing={2}>
           <Typography variant="body2" color="text.secondary">
-            Enter the same code on both phones, then tap Sync on each. Newer changes always win —
-            nothing is ever silently deleted.
+            Enter the same code on both phones, then tap Sync on each. Newer changes always win, and
+            nothing is ever deleted.
           </Typography>
 
           <TextField

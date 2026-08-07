@@ -49,7 +49,7 @@ export function useReportData(): ReportDataApi {
       setLoadError(null);
     } catch (err) {
       if (!alive.current) return;
-      const message = err instanceof Error ? err.message : "Couldn't read your saved trips.";
+      const message = "Couldn't read your saved trips.";
       setLoadError(message);
       uiActions.showError(err, "Couldn't read your saved trips.");
     }

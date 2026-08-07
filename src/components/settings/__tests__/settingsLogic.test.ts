@@ -7,6 +7,7 @@ import {
   isDateKeyString,
   lastSyncedLabel,
   mergePreviewText,
+  mergeResultText,
   parseRateInput,
   periodPreviewLabel,
 } from "../settingsLogic";
@@ -14,8 +15,9 @@ import {
 const DAY_MS = 86_400_000;
 
 describe("daysAgoLabel", () => {
+  // Rendered after "Last backup: ", so every branch has to be a bare value.
   it("says never when unset", () => {
-    expect(daysAgoLabel(undefined, Date.now())).toBe("Never backed up");
+    expect(daysAgoLabel(undefined, Date.now())).toBe("Never");
   });
   it("says Today for same-day", () => {
     const now = Date.now();
@@ -97,6 +99,40 @@ describe("mergePreviewText", () => {
     expect(
       mergePreviewText({ tripsAdded: 1, tripsUpdated: 0, routesAdded: 0, routesUpdated: 0 }),
     ).toBe("Adds 1 trip — nothing is deleted.");
+  });
+});
+
+// mergePreviewText is a forecast shown before the write; mergeResultText
+// reports the same counts afterwards. Reusing the forecast as the receipt was
+// the bug: "Import complete — Adds 12 trips… nothing is deleted."
+describe("mergeResultText", () => {
+  it("reports adds and updates in the past tense", () => {
+    expect(
+      mergeResultText({ tripsAdded: 12, tripsUpdated: 3, routesAdded: 2, routesUpdated: 0 }),
+    ).toBe("added 12 trips and 2 routes, updated 3 trips");
+  });
+  it("singularizes a single item", () => {
+    expect(
+      mergeResultText({ tripsAdded: 1, tripsUpdated: 0, routesAdded: 0, routesUpdated: 0 }),
+    ).toBe("added 1 trip");
+  });
+  it("names the no-op case generically by default", () => {
+    expect(
+      mergeResultText({ tripsAdded: 0, tripsUpdated: 0, routesAdded: 0, routesUpdated: 0 }),
+    ).toBe("nothing new to add");
+  });
+  it("lets the caller say where nothing came from", () => {
+    expect(
+      mergeResultText(
+        { tripsAdded: 0, tripsUpdated: 0, routesAdded: 0, routesUpdated: 0 },
+        "nothing new from your other phone",
+      ),
+    ).toBe("nothing new from your other phone");
+  });
+  it("never mentions a backup, so the sync path can reuse it", () => {
+    expect(
+      mergeResultText({ tripsAdded: 0, tripsUpdated: 0, routesAdded: 0, routesUpdated: 0 }),
+    ).not.toContain("backup");
   });
 });
 

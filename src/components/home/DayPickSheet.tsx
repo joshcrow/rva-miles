@@ -80,7 +80,7 @@ export function DayPickSheet({ open, onClose, title, subtitle, today, onPick }: 
               onClick={() => pick(custom)}
               sx={{ flexShrink: 0 }}
             >
-              Log
+              Log trip
             </Button>
           </Stack>
         </Box>

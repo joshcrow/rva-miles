@@ -183,11 +183,19 @@ describe("formatting", () => {
 });
 
 describe("reportSubject", () => {
-  it("carries range, miles and money", () => {
+  it("names the driver, then the range, then the two numbers", () => {
     const meta = buildMeta({ startKey: "2025-08-01", endKey: "2025-08-15" }, SETTINGS);
     const trips = [trip({ distanceMiles: 214.6, ratePerMile: 0.7 })];
     expect(reportSubject(meta, computeTotals(trips))).toBe(
-      "Mileage — Aug 1–15, 2025 — 214.6 mi — $150.22",
+      "Mileage report — Dana Smith — Aug 1–15, 2025 · 214.6 mi · $150.22",
+    );
+  });
+
+  it("omits the driver clause rather than leaving a dangling dash", () => {
+    const meta = buildMeta({ startKey: "2025-08-01", endKey: "2025-08-15" }, { ratePerMile: 0.7, theme: "system" });
+    const trips = [trip({ distanceMiles: 214.6, ratePerMile: 0.7 })];
+    expect(reportSubject(meta, computeTotals(trips))).toBe(
+      "Mileage report — Aug 1–15, 2025 · 214.6 mi · $150.22",
     );
   });
 });

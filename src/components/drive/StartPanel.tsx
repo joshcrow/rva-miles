@@ -41,7 +41,7 @@ export function StartPanel({
         <IconButton
           component={Link}
           href="/"
-          aria-label="Back to home"
+          aria-label="Back to Home"
           sx={{ color: STAGE_DIM, ml: -1 }}
         >
           <ArrowBackRounded />
@@ -163,7 +163,7 @@ export function StartPanel({
             </Typography>
           )}
           <Typography variant="caption" sx={{ color: STAGE_FAINT }}>
-            {acquiring ? "Waiting for a trustworthy first fix" : "One tap. Miles counted from here."}
+            {acquiring ? "Waiting for a trustworthy first fix" : "Miles count from the moment you tap"}
           </Typography>
         </Stack>
       </Stack>
@@ -181,7 +181,7 @@ export function StartPanel({
       >
         <ScreenLockPortraitRounded sx={{ fontSize: 20, color: STAGE_FAINT, mt: "1px" }} />
         <Typography variant="caption" sx={{ color: STAGE_DIM, lineHeight: 1.5 }}>
-          Keep this screen on while driving — iOS pauses GPS in the background.
+          Leave this screen open while you drive — GPS stops when the app is in the background.
         </Typography>
       </Stack>
     </>

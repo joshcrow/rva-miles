@@ -4,6 +4,7 @@
 // was used ('1.' = gzip, '0.' = plain) so old links keep working forever.
 
 import type { ReportPayload } from "@/types";
+import { UserFacingError } from "./errors";
 
 const GZIP_PREFIX = "1.";
 const PLAIN_PREFIX = "0.";
@@ -63,14 +64,16 @@ export async function decodeReport(fragment: string): Promise<ReportPayload> {
   const prefix = fragment.slice(0, 2);
   const body = fragment.slice(2);
   if (prefix !== GZIP_PREFIX && prefix !== PLAIN_PREFIX) {
-    throw new Error("This report link isn't recognized. It may be from a newer or incompatible version of the app.");
+    throw new UserFacingError(
+      "This report link isn't recognized. It may have been made by a newer version of RVA Miles.",
+    );
   }
 
   let bytes: Bytes;
   try {
     bytes = base64UrlToBytes(body);
   } catch {
-    throw new Error("This report link is corrupted and can't be read.");
+    throw new UserFacingError("This report link is corrupted and can't be read.");
   }
 
   const raw = prefix === GZIP_PREFIX ? await gunzip(bytes) : bytes;
@@ -79,11 +82,11 @@ export async function decodeReport(fragment: string): Promise<ReportPayload> {
   try {
     parsed = JSON.parse(new TextDecoder().decode(raw));
   } catch {
-    throw new Error("This report link is corrupted and can't be read.");
+    throw new UserFacingError("This report link is corrupted and can't be read.");
   }
 
   if (!isReportPayload(parsed)) {
-    throw new Error("This report link is missing expected data and can't be read.");
+    throw new UserFacingError("This report link is missing part of its data and can't be read.");
   }
 
   return parsed;

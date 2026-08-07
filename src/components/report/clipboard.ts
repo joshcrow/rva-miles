@@ -6,6 +6,8 @@
 // back to the old selection trick before giving up. Throws when nothing
 // worked — callers surface that loudly.
 
+import { UserFacingError } from "@/lib/errors";
+
 export async function copyText(text: string): Promise<void> {
   if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
     try {
@@ -17,7 +19,7 @@ export async function copyText(text: string): Promise<void> {
   }
 
   if (typeof document === "undefined") {
-    throw new Error("Copying isn't available here.");
+    throw new UserFacingError("Copying isn't available here.");
   }
 
   const area = document.createElement("textarea");
@@ -31,7 +33,7 @@ export async function copyText(text: string): Promise<void> {
     area.select();
     area.setSelectionRange(0, text.length);
     const ok = document.execCommand("copy");
-    if (!ok) throw new Error("Your browser blocked the copy. Select the text and copy it manually.");
+    if (!ok) throw new UserFacingError("Your browser blocked the copy. Select the text and copy it manually.");
   } finally {
     document.body.removeChild(area);
   }

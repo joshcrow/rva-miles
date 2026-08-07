@@ -67,7 +67,7 @@ export function TripPreviewTable({ trips }: TripPreviewTableProps) {
           Trip
         </Typography>
         <Typography variant="overline" color="text.secondary" sx={{ textAlign: "right" }}>
-          mi
+          Miles
         </Typography>
         <Typography variant="overline" color="text.secondary" sx={{ textAlign: "right" }}>
           Amount
@@ -155,7 +155,7 @@ export function TripPreviewTable({ trips }: TripPreviewTableProps) {
         }}
       >
         <Box />
-        <Typography variant="subtitle2">Total</Typography>
+        <Typography variant="subtitle2">Totals</Typography>
         <Typography variant="subtitle2" className="tnum" sx={{ textAlign: "right" }}>
           {fmtMiles(totals.miles)}
         </Typography>

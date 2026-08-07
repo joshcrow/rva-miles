@@ -23,6 +23,7 @@ import { toDateKey } from "@/lib/dates";
 import { encodeTrack, simplifyTrack } from "@/lib/geo";
 import { reverseGeocode, routeMiles } from "@/lib/geocode";
 import { newId } from "@/lib/ids";
+import { formatRate } from "@/lib/rates";
 import { routeFromTrip } from "@/lib/routesLogic";
 import type { CompletedDrive } from "@/lib/tracking";
 import { uiActions } from "@/stores/ui";
@@ -55,12 +56,6 @@ function sanitizeDistance(raw: string): string {
   return cleaned.slice(0, firstDot + 1) + cleaned.slice(firstDot + 1).replace(/\./g, "");
 }
 
-/** "$0.70" / "$0.725" — cents precision, thousandths only when they matter. */
-function formatRate(rate: number): string {
-  const three = rate.toFixed(3);
-  return `$${three.endsWith("0") ? three.slice(0, -1) : three}`;
-}
-
 function toPlace(name: string, latLng?: LatLng): Place {
   const place: Place = {};
   const trimmed = name.trim();
@@ -76,7 +71,7 @@ export function StopSheet({ open, drive, settings, finalize, onSaved, onDiscard 
   const [source, setSource] = useState<DistanceSource>("gps");
   const [roadMiles, setRoadMiles] = useState<number | null>(null);
   const [reconcile, setReconcile] = useState<ReconcileState>(canReconcile ? "loading" : "off");
-  const [distanceText, setDistanceText] = useState(() => gpsMiles.toFixed(2));
+  const [distanceText, setDistanceText] = useState(() => gpsMiles.toFixed(1));
   const [handEdited, setHandEdited] = useState(false);
   const [fromName, setFromName] = useState("");
   const [toName, setToName] = useState("");
@@ -134,7 +129,7 @@ export function StopSheet({ open, drive, settings, finalize, onSaved, onDiscard 
       setReconcile("done");
       if (shouldPreferRoute(gpsMiles, result.miles) && !handEditedRef.current) {
         setSource("route");
-        setDistanceText(milesFor("route", roundTripRef.current, result.miles).toFixed(2));
+        setDistanceText(milesFor("route", roundTripRef.current, result.miles).toFixed(1));
       }
     })();
     return () => {
@@ -145,7 +140,7 @@ export function StopSheet({ open, drive, settings, finalize, onSaved, onDiscard 
 
   function changeSource(next: DistanceSource) {
     setSource(next);
-    setDistanceText(milesFor(next, roundTripRef.current, roadMiles).toFixed(2));
+    setDistanceText(milesFor(next, roundTripRef.current, roadMiles).toFixed(1));
     setHandEdited(false);
     handEditedRef.current = false;
   }
@@ -154,7 +149,7 @@ export function StopSheet({ open, drive, settings, finalize, onSaved, onDiscard 
     setRoundTrip(next);
     roundTripRef.current = next;
     if (isLoop) return; // flag only — the measurement is unchanged
-    setDistanceText(milesFor(source, next, roadMiles).toFixed(2));
+    setDistanceText(milesFor(source, next, roadMiles).toFixed(1));
     setHandEdited(false);
     handEditedRef.current = false;
   }
@@ -168,18 +163,18 @@ export function StopSheet({ open, drive, settings, finalize, onSaved, onDiscard 
     try {
       await softDeleteTrip(tripId);
     } catch (err) {
-      uiActions.showError(err, "Couldn't undo that save — the trip is still in your log.");
+      uiActions.showError(err, "Couldn't undo that — the trip is still in your log.");
       return;
     }
     if (routeId) {
       try {
         await archiveRoute(routeId);
       } catch {
-        uiActions.showSnack("Trip removed — its tile is still on Home.", "warning");
+        uiActions.showSnack("Trip removed — its route is still on Home.", "warning");
         return;
       }
     }
-    uiActions.showSnack("Trip removed.", "info");
+    uiActions.showSnack("Trip removed", "info");
   }
 
   async function handleSave() {
@@ -225,17 +220,23 @@ export function StopSheet({ open, drive, settings, finalize, onSaved, onDiscard 
       try {
         await putRoute(route);
       } catch (err) {
-        uiActions.showError(err, "Trip saved, but the tile couldn't be created.");
+        uiActions.showError(
+          err,
+          "Trip saved. The route couldn't be added to Home — you can add it next time.",
+        );
       }
     }
 
     try {
       await finalize();
     } catch (err) {
-      uiActions.showError(err, "Trip saved, but the in-progress drive couldn't be cleared.");
+      uiActions.showError(
+        err,
+        "Trip saved. The drive is still listed as unfinished — discard it on the drive screen.",
+      );
     }
 
-    uiActions.showUndo(`Saved ${formatMiles(finalMiles, 1)} mi · ${formatMoney(amount)}`, () => {
+    uiActions.showUndo(`Logged ${formatMiles(finalMiles, 1)} mi · ${formatMoney(amount)}`, () => {
       void undoSave(tripId, routeId);
     });
     onSaved();
@@ -310,8 +311,8 @@ export function StopSheet({ open, drive, settings, finalize, onSaved, onDiscard 
 
         {showChoice && roadMiles != null ? (
           <Stack spacing={1} sx={{ mb: 2.5 }}>
-            <Typography variant="subtitle2">Which distance should we bill?</Typography>
-            <Stack direction="row" spacing={1.25} role="radiogroup" aria-label="Distance source">
+            <Typography variant="subtitle2">Which distance should be billed?</Typography>
+            <Stack direction="row" spacing={1.25} role="radiogroup" aria-label="Which distance should be billed">
               <SourceCard
                 selected={source === "gps"}
                 onClick={() => changeSource("gps")}
@@ -361,7 +362,7 @@ export function StopSheet({ open, drive, settings, finalize, onSaved, onDiscard 
             error={!validDistance}
             helperText={
               !validDistance
-                ? "Enter a distance greater than zero"
+                ? "Enter a distance greater than 0."
                 : handEdited
                   ? "Manually adjusted"
                   : " "
@@ -447,8 +448,8 @@ export function StopSheet({ open, drive, settings, finalize, onSaved, onDiscard 
             tileTouched.current = true;
             setSaveTile(next);
           }}
-          label="Save as a tile"
-          caption="Puts this route on Home so logging it again is one tap."
+          label="Save as a route"
+          caption="Adds it to Home so logging it again is one tap."
         />
 
         <Stack spacing={1.25} sx={{ mt: 3 }}>

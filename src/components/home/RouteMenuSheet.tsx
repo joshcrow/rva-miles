@@ -90,7 +90,7 @@ export function RouteMenuSheet({ open, route, onClose, onLogAnotherDay, onEdit }
         <MenuRow
           icon={<CalendarMonthRoundedIcon fontSize="small" />}
           label="Log for another day"
-          hint="Backfill a drive you forgot"
+          hint="Log a trip you missed"
           onClick={onLogAnotherDay}
         />
         <MenuRow

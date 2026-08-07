@@ -180,12 +180,12 @@ describe("periodPresets", () => {
     expect(byLabel["Last 30 days"]).toEqual({ startKey: "2026-07-09", endKey: "2026-08-07" });
   });
 
-  it("with a schedule: prepends This period / Last period", () => {
+  it("with a schedule: prepends This pay period / Last pay period", () => {
     const schedule: PaySchedule = { frequency: "biweekly", anchorKey: "2026-01-05" };
     const presets = periodPresets(schedule, "2026-01-10");
     expect(presets.map((p) => p.label)).toEqual([
-      "This period",
-      "Last period",
+      "This pay period",
+      "Last pay period",
       "This month",
       "Last month",
       "Last 30 days",

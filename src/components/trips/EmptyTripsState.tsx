@@ -53,7 +53,7 @@ export function EmptyTripsState({ variant, monthLabel, onClearSearch }: EmptyTri
           No trips yet
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75, mx: "auto", maxWidth: 280 }}>
-          Log your first drive from Home and it will show up here.
+          Log your first trip from Home and it will show up here.
         </Typography>
         <Button
           size="large"

@@ -73,7 +73,7 @@ export function DriveErrorPanel({ message, onRetry }: DriveErrorPanelProps) {
         }}
       >
         <Typography variant="overline" sx={{ color: STAGE_FAINT }}>
-          {isIos ? "Turn location back on (iOS)" : "Turn location back on"}
+          Turn location back on
         </Typography>
         {steps.map((step, i) => (
           <Stack key={step} direction="row" spacing={1.25} alignItems="flex-start">

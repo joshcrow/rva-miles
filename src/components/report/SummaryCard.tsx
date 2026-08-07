@@ -123,7 +123,7 @@ export function SummaryCard({ range, totals, ownerName, vehicle, rate }: Summary
             <Box component={Link} href="/settings" sx={{ color: "primary.main", fontWeight: 700 }}>
               Settings
             </Box>{" "}
-            so they appear on the report.
+            so {missing.length === 1 ? "it appears" : "they appear"} on the report.
           </Typography>
         ) : null}
       </Box>

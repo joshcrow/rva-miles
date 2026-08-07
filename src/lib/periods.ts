@@ -64,8 +64,10 @@ export function periodPresets(s: PaySchedule | undefined, today: string): Period
   const presets: PeriodPreset[] = [];
   if (s) {
     const current = periodContaining(s, today);
-    presets.push({ label: "This period", range: current });
-    presets.push({ label: "Last period", range: previousPeriod(s, current) });
+    // "pay" is what distinguishes these from "This month" beside them, and
+    // from the Home chip one tap away that already says "This pay period".
+    presets.push({ label: "This pay period", range: current });
+    presets.push({ label: "Last pay period", range: previousPeriod(s, current) });
   }
   const thisMonth = monthlyPeriod(today);
   presets.push({ label: "This month", range: thisMonth });

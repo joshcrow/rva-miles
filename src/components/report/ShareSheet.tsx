@@ -191,7 +191,7 @@ export function ShareSheet({
           inputMode="email"
           onChange={(e) => setEmail(e.target.value)}
           onBlur={commitRecipient}
-          helperText="Remembered for next time."
+          helperText="Remembered for next time"
         />
         <Button
           fullWidth
@@ -207,7 +207,7 @@ export function ShareSheet({
         </Button>
         <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
           {linkError
-            ? "Opens your mail app with the summary. (The shareable link couldn't be built — send the file instead.)"
+            ? "Opens your mail app with the summary. The report link couldn't be built — send the spreadsheet instead."
             : link
               ? "Opens your mail app with the summary and the report link already written."
               : "Preparing the report link…"}

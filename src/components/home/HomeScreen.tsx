@@ -306,7 +306,7 @@ export function HomeScreen() {
         await refresh();
         return;
       }
-      showLogged(`Round trip — ${fmtMiles(next.distanceMiles)} mi · ${name}`, {
+      showLogged(`Logged ${fmtMiles(next.distanceMiles)} mi — ${name}, round trip`, {
         trip: next,
         prevRoute: logged.prevRoute,
       });
@@ -362,7 +362,7 @@ export function HomeScreen() {
       }
 
       const message = route
-        ? "Logged & saved as a tile"
+        ? `Logged ${fmtMiles(trip.distanceMiles)} mi — saved as a route`
         : `Logged ${fmtMiles(trip.distanceMiles)} mi`;
 
       uiActions.showUndo(message, () => {
@@ -537,7 +537,7 @@ export function HomeScreen() {
           >
             <AddRoadRoundedIcon sx={{ fontSize: 30, color: "primary.main" }} />
             <Typography variant="h5" sx={{ mt: 1 }}>
-              No tiles yet
+              No saved routes yet
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, mb: 2.5 }}>
               Log a trip once and it turns into a one-tap tile.
@@ -590,7 +590,7 @@ export function HomeScreen() {
             href="/drive"
             startIcon={<NavigationRoundedIcon />}
           >
-            Track a drive (GPS)
+            Track a drive
           </Button>
         ) : null}
 

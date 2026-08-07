@@ -95,7 +95,7 @@ export function ProfileSection({ settings, today, onPatch }: ProfileSectionProps
               }}
               helperText={
                 rateInvalid
-                  ? "Enter a rate greater than 0"
+                  ? "Enter a rate greater than 0."
                   : `IRS ${today.slice(0, 4)} business rate: ${formatRate(irsRate)}`
               }
             />
@@ -108,7 +108,7 @@ export function ProfileSection({ settings, today, onPatch }: ProfileSectionProps
                 variant="outlined"
               />
               <Typography variant="caption" color="text.secondary">
-                Rate changes only affect new trips
+                Rate changes only affect new trips.
               </Typography>
             </Stack>
           </Stack>

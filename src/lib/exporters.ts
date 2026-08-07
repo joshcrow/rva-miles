@@ -3,6 +3,11 @@
 // rounding/row pass (computeReportRows) so miles/money never drift between
 // formats. Dates are formatted from the 'YYYY-MM-DD' dateKey by string split
 // only — never `new Date(dateKey)` — to stay immune to the UTC-parse bug.
+//
+// CSV cells deliberately carry the raw ISO 'YYYY-MM-DD' key while the XLSX and
+// the email body print "Aug 3, 2026". That is not drift: Excel reads a month
+// name differently by locale, and ISO is both unambiguous and correctly
+// sortable as text. See docs/content-style.md — do not "fix" it into a bug.
 
 import type { DateRange, Place, Trip } from "@/types";
 import { routeText } from "./legs";
@@ -186,7 +191,7 @@ export async function buildXlsx(trips: Trip[], meta: ReportMeta): Promise<Blob> 
   addSubtitleRow(
     `Period: ${formatDateKeyDisplay(meta.range.startKey)} – ${formatDateKeyDisplay(meta.range.endKey)}`
   );
-  if (meta.ownerName) addSubtitleRow(`Owner: ${meta.ownerName}`);
+  if (meta.ownerName) addSubtitleRow(`Driver: ${meta.ownerName}`);
   if (meta.vehicle) addSubtitleRow(`Vehicle: ${meta.vehicle}`);
   addSubtitleRow(`Generated: ${formatTimestamp(Date.now())}`);
 
@@ -292,8 +297,8 @@ export function buildSummaryText(trips: Trip[], meta: ReportMeta): string {
 
   const lines: string[] = [];
   lines.push(meta.title);
-  lines.push(`Period: ${formatDateKeyDisplay(meta.range.startKey)} - ${formatDateKeyDisplay(meta.range.endKey)}`);
-  if (meta.ownerName) lines.push(`Owner: ${meta.ownerName}`);
+  lines.push(`Period: ${formatDateKeyDisplay(meta.range.startKey)} – ${formatDateKeyDisplay(meta.range.endKey)}`);
+  if (meta.ownerName) lines.push(`Driver: ${meta.ownerName}`);
   if (meta.vehicle) lines.push(`Vehicle: ${meta.vehicle}`);
   lines.push(`Generated: ${formatTimestamp(Date.now())}`);
   lines.push("");
@@ -304,7 +309,7 @@ export function buildSummaryText(trips: Trip[], meta: ReportMeta): string {
   lines.push(formatRow(totalsRowCells));
   lines.push("");
   lines.push(
-    `${totals.count} trip${totals.count === 1 ? "" : "s"} • ${totals.miles.toFixed(1)} miles • $${totals.amount.toFixed(2)} total`
+    `${totals.count} trip${totals.count === 1 ? "" : "s"} · ${totals.miles.toFixed(1)} miles · $${totals.amount.toFixed(2)}`
   );
 
   return lines.join("\n");
@@ -312,7 +317,26 @@ export function buildSummaryText(trips: Trip[], meta: ReportMeta): string {
 
 // --- Filenames ---------------------------------------------------------
 
+/** Lowercase, hyphen-joined, ASCII-safe — this lands in someone else's Downloads folder. */
+function filenameSlug(name: string): string {
+  return name
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+/**
+ * "mileage-dana-smith-2026-08-01-to-2026-08-15.xlsx".
+ *
+ * The manager reads this name next to other people's reports, so it leads
+ * with what the document is and whose it is rather than with the app's brand,
+ * and separates every part the same way so it sorts and scans cleanly.
+ */
 export function reportFilename(meta: ReportMeta, ext: string): string {
   const cleanExt = ext.replace(/^\.+/, "");
-  return `rva-miles-${meta.range.startKey}_${meta.range.endKey}.${cleanExt}`;
+  const who = meta.ownerName ? filenameSlug(meta.ownerName) : "";
+  const parts = ["mileage", who, `${meta.range.startKey}-to-${meta.range.endKey}`].filter(Boolean);
+  return `${parts.join("-")}.${cleanExt}`;
 }

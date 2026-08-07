@@ -53,7 +53,7 @@ export function RecipientSection({ settings, onPatch }: RecipientSectionProps) {
             onChange={(e) => setEmail(e.target.value)}
             onBlur={() => commit(name, email)}
             fullWidth
-            helperText="Prefills the Send to field on the Report tab"
+            helperText="Prefills the Send to field on the Report tab."
             slotProps={{ htmlInput: { inputMode: "email", autoComplete: "email" } }}
           />
         </Stack>

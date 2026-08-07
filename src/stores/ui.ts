@@ -8,6 +8,9 @@
 // happen instantly and offer UNDO here instead of a confirmation dialog.
 
 import { create } from "zustand";
+import { isUserFacing } from "@/lib/errors";
+
+export { UserFacingError } from "@/lib/errors";
 
 export type SnackSeverity = "success" | "info" | "warning" | "error";
 
@@ -39,7 +42,11 @@ interface UiStore {
     severity?: SnackSeverity,
     options?: SnackOptions,
   ) => void;
-  /** Loud failure path. Accepts an Error so callers can just pass what they caught. */
+  /**
+   * Loud failure path. Accepts an Error so callers can just pass what they
+   * caught — the caught error is logged, never rendered, unless it is a
+   * UserFacingError. What the user reads is the `fallback` sentence.
+   */
   showError: (input: unknown, fallback?: string) => void;
   /** Instant action + escape hatch. No confirmation dialogs anywhere. */
   showUndo: (message: string, onUndo: () => void) => void;
@@ -48,10 +55,18 @@ interface UiStore {
 
 let seq = 0;
 
-function errorMessage(input: unknown, fallback: string): string {
+const GENERIC_ERROR = "Something went wrong.";
+
+/**
+ * The caller's written sentence always beats a raw throw. A developer's
+ * message never reaches the snackbar — it goes to the console, where it is
+ * still there to debug with.
+ */
+function errorMessage(input: unknown, fallback?: string): string {
   if (typeof input === "string" && input.trim()) return input;
-  if (input instanceof Error && input.message) return input.message;
-  return fallback;
+  if (isUserFacing(input) && input.message) return input.message;
+  if (input !== undefined && input !== null) console.error("RVA Miles:", input);
+  return fallback?.trim() || GENERIC_ERROR;
 }
 
 export const useUiStore = create<UiStore>((set) => ({
@@ -72,7 +87,7 @@ export const useUiStore = create<UiStore>((set) => ({
     });
   },
 
-  showError: (input, fallback = "Something went wrong.") => {
+  showError: (input, fallback) => {
     seq += 1;
     set({
       snack: {

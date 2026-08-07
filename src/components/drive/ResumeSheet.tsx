@@ -68,7 +68,7 @@ export function ResumeSheet({
             <HistoryRounded />
           </Box>
           <Box sx={{ minWidth: 0 }}>
-            <Typography variant="h4">Trip in progress</Typography>
+            <Typography variant="h4">Unfinished drive</Typography>
             <Typography variant="body2" color="text.secondary">
               {drive ? `from ${formatClock(drive.startedAt)}` : ""}
               {hasMovement ? ` — ${formatMiles(miles)} mi so far` : " — no movement recorded yet"}

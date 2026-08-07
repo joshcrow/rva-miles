@@ -10,7 +10,8 @@ import { periodContaining } from "@/lib/periods";
 const DAY_MS = 86_400_000;
 
 export function daysAgoLabel(at: number | undefined, now: number): string {
-  if (!at) return "Never backed up";
+  // Rendered after "Last backup: ", so every branch is a bare value.
+  if (!at) return "Never";
   const days = Math.floor((now - at) / DAY_MS);
   if (days <= 0) return "Today";
   if (days === 1) return "1 day ago";
@@ -66,16 +67,28 @@ export interface MergePreviewCounts {
   routesUpdated: number;
 }
 
-/** "Adds 12 trips and 2 routes, updates 3 trips — nothing is deleted." */
-export function mergePreviewText(c: MergePreviewCounts): string {
-  const adds = [
+function addedList(c: MergePreviewCounts): string[] {
+  return [
     c.tripsAdded ? pluralize(c.tripsAdded, "trip") : null,
     c.routesAdded ? pluralize(c.routesAdded, "route") : null,
   ].filter((s): s is string => s !== null);
-  const updates = [
+}
+
+function updatedList(c: MergePreviewCounts): string[] {
+  return [
     c.tripsUpdated ? pluralize(c.tripsUpdated, "trip") : null,
     c.routesUpdated ? pluralize(c.routesUpdated, "route") : null,
   ].filter((s): s is string => s !== null);
+}
+
+/**
+ * A forecast, for the confirmation sheet BEFORE anything is written:
+ * "Adds 12 trips and 2 routes, updates 3 trips — nothing is deleted."
+ * Never reuse this after the fact — the tense is a promise, not a report.
+ */
+export function mergePreviewText(c: MergePreviewCounts): string {
+  const adds = addedList(c);
+  const updates = updatedList(c);
 
   const clauses: string[] = [];
   if (adds.length) clauses.push(`Adds ${joinParts(adds)}`);
@@ -83,6 +96,28 @@ export function mergePreviewText(c: MergePreviewCounts): string {
 
   if (clauses.length === 0) return "No changes — this backup already matches what's on your device.";
   return `${clauses.join(", ")} — nothing is deleted.`;
+}
+
+/**
+ * The same counts in the past tense, for AFTER the write: "added 12 trips and
+ * 2 routes, updated 3 trips". Reads as a clause so the caller supplies the
+ * headline — "Import complete — …", "Synced — …" — and names the no-op case
+ * in its own terms, because "nothing new" means something different when it
+ * came from a file than when it came from another phone.
+ */
+export function mergeResultText(
+  c: MergePreviewCounts,
+  whenNothingChanged = "nothing new to add",
+): string {
+  const adds = addedList(c);
+  const updates = updatedList(c);
+
+  const clauses: string[] = [];
+  if (adds.length) clauses.push(`added ${joinParts(adds)}`);
+  if (updates.length) clauses.push(`updated ${joinParts(updates)}`);
+
+  if (clauses.length === 0) return whenNothingChanged;
+  return clauses.join(", ");
 }
 
 // Crockford-ish alphabet minus I/L/O (easy to misread) and 0/1 (easy to

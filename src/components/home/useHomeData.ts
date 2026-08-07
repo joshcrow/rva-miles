@@ -112,7 +112,8 @@ export function useHomeData(): HomeDataApi {
       setLoadError(null);
     } catch (err) {
       if (!alive.current) return;
-      setLoadError(err instanceof Error ? err.message : "Couldn't read your saved trips.");
+      // The written sentence, never a Dexie diagnostic — this renders in an Alert.
+      setLoadError("Couldn't read your saved trips.");
       uiActions.showError(err, "Couldn't read your saved trips.");
     }
   }, []);
@@ -125,7 +126,10 @@ export function useHomeData(): HomeDataApi {
         const n = await bootstrapOnce();
         if (alive.current && n > 0) setMigratedCount(n);
       } catch (err) {
-        uiActions.showError(err, "Couldn't import your data from the previous version.");
+        uiActions.showError(
+          err,
+          "Couldn't bring your trips over from the previous version. Nothing on this device was changed.",
+        );
       }
       await refresh();
       if (alive.current) setReady(true);

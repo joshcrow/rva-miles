@@ -340,9 +340,17 @@ export function buildTsv(trips: Trip[], meta: ReportMeta): string {
 
 // --- message composition ---------------------------------------------------
 
-/** 'Mileage — Aug 1 – 15, 2025 — 214.6 mi — $150.22' */
+/**
+ * 'Mileage report — Dana Smith — Aug 1–15, 2025 · 214.6 mi · $150.22'
+ *
+ * The manager's inbox may hold one of these from everyone he approves, so the
+ * subject names the driver. The period is the subject; the two numbers are
+ * supporting detail, which is why they hang off a middle dot rather than a
+ * third em dash flattening all three to the same weight.
+ */
 export function reportSubject(meta: ReportMeta, totals: ReportTotals): string {
-  return `Mileage — ${rangeLabelLong(meta.range)} — ${fmtMiles(totals.miles)} mi — ${fmtMoney(
+  const who = meta.ownerName ? `${meta.ownerName} — ` : "";
+  return `Mileage report — ${who}${rangeLabelLong(meta.range)} · ${fmtMiles(totals.miles)} mi · ${fmtMoney(
     totals.money,
   )}`;
 }
@@ -354,7 +362,7 @@ export function shareText(meta: ReportMeta, totals: ReportTotals, link: string |
     "",
     `${pluralTrips(totals.count)} · ${fmtMiles(totals.miles)} miles · ${fmtMoney(totals.money)}`,
   ];
-  if (meta.ownerName) lines.push(`Owner: ${meta.ownerName}`);
+  if (meta.ownerName) lines.push(`Driver: ${meta.ownerName}`);
   if (meta.vehicle) lines.push(`Vehicle: ${meta.vehicle}`);
   if (link) {
     lines.push("");

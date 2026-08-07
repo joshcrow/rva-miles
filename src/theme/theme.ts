@@ -370,7 +370,30 @@ const theme = createTheme({
       defaultProps: { animation: "wave" },
       styleOverrides: { root: { borderRadius: radii.control } },
     },
-    MuiSwitch: { defaultProps: { color: "primary" } },
+    MuiSwitch: {
+      defaultProps: { color: "primary" },
+      styleOverrides: {
+        // iOS-style solid tracks: MUI's default translucent track sat at
+        // near-zero contrast on light-mode cards.
+        root: ({ theme }) => ({
+          "& .MuiSwitch-thumb": {
+            backgroundColor: "#fff",
+            boxShadow: "0 1px 3px rgba(16,10,30,0.4)",
+          },
+          "& .MuiSwitch-track": {
+            opacity: 1,
+            backgroundColor: "#A9A4B8",
+            ...theme.applyStyles("dark", { backgroundColor: "rgba(255,255,255,0.25)" }),
+          },
+          "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": {
+            opacity: 1,
+          },
+          "& .MuiSwitch-switchBase.Mui-disabled + .MuiSwitch-track": {
+            opacity: 0.4,
+          },
+        }),
+      },
+    },
     MuiTooltip: {
       styleOverrides: {
         tooltip: { borderRadius: radii.control, fontSize: "0.75rem" },

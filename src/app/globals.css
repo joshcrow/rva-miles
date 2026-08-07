@@ -1,12 +1,41 @@
-/* Global styles - MUI handles most styling via ThemeProvider */
+/* RVA Miles — minimal global layer. Everything else lives in the MUI theme
+   (src/theme/theme.ts). Keep this file small on purpose. */
 
-/* Base reset - MUI CssBaseline handles this but keeping minimal reset */
-*, *::before, *::after {
-  box-sizing: border-box;
+:root {
+  /* Notch / home-indicator insets. Requires viewport-fit=cover (set in
+     layout.tsx viewport export) or these all resolve to 0px. */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  /* Height of the fixed bottom nav (excluding the safe-area inset). */
+  --nav-height: 64px;
 }
 
-html, body {
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
   margin: 0;
-  padding: 0;
-  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
+  /* No rubber-band / pull-to-refresh — this reads as a native app shell.
+     Full-height surfaces use 100dvh (not 100vh) so mobile browser chrome
+     collapsing never leaves a dead strip at the bottom. */
+  overscroll-behavior-y: none;
+}
+
+/* Money and mileage numerals must not jitter as they tick. */
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+@media print {
+  body {
+    background: #fff;
+  }
 }

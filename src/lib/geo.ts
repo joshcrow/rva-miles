@@ -1,118 +1,86 @@
-import { GpsPoint } from "@/types";
+// Pure GPS geometry: distance, fix acceptance/noise filtering, track
+// simplification, and polyline encoding. No I/O, no browser APIs — every
+// export here is a plain function, safe to unit test without jsdom.
 
-const EARTH_RADIUS_MILES = 3958.8;
+import simplify from "simplify-js";
+import { decode, encode } from "@googlemaps/polyline-codec";
+import type { GpsPoint, LatLng } from "@/types";
+
+const EARTH_RADIUS_MILES = 3958.7613;
+const MILES_TO_METERS = 1609.344;
+
+function toRadians(deg: number): number {
+  return (deg * Math.PI) / 180;
+}
+
+/** Great-circle distance between two points, in miles (spherical-earth haversine). */
+export function haversineMiles(a: LatLng, b: LatLng): number {
+  const dLat = toRadians(b.lat - a.lat);
+  const dLng = toRadians(b.lng - a.lng);
+  const lat1 = toRadians(a.lat);
+  const lat2 = toRadians(b.lat);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 2 * EARTH_RADIUS_MILES * Math.asin(Math.sqrt(Math.min(1, h)));
+}
+
+const MAX_ACCURACY_M = 35;
+const MAX_SPEED_MPH = 100;
+const DEFAULT_ACCURACY_M = 20;
 
 /**
- * Calculate distance between two GPS points using Haversine formula
+ * Gates a raw GPS fix before it's allowed to move the odometer. Three
+ * independent rejection reasons (v1 had none of these, hence stationary
+ * jitter inflating billed miles):
+ *  - the fix itself is too imprecise to trust
+ *  - the implied movement is smaller than the combined accuracy "noise
+ *    floor" of the two fixes, i.e. indistinguishable from standing still
+ *  - the implied speed is faster than a car can plausibly go (a jump most
+ *    likely caused by a bad fix, not real travel)
  */
-export function haversineDistance(point1: GpsPoint, point2: GpsPoint): number {
-  const lat1Rad = toRadians(point1.lat);
-  const lat2Rad = toRadians(point2.lat);
-  const deltaLat = toRadians(point2.lat - point1.lat);
-  const deltaLng = toRadians(point2.lng - point1.lng);
+export function acceptFix(prev: GpsPoint | undefined, next: GpsPoint): boolean {
+  if ((next.accuracy ?? 0) > MAX_ACCURACY_M) return false;
+  if (!prev) return true;
 
-  const a =
-    Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
-    Math.cos(lat1Rad) *
-      Math.cos(lat2Rad) *
-      Math.sin(deltaLng / 2) *
-      Math.sin(deltaLng / 2);
+  const stepMeters = haversineMiles(prev, next) * MILES_TO_METERS;
+  const noiseFloorMeters = 2 * ((prev.accuracy ?? DEFAULT_ACCURACY_M) + (next.accuracy ?? DEFAULT_ACCURACY_M));
+  if (stepMeters < noiseFloorMeters) return false;
 
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const dtHours = (next.timestamp - prev.timestamp) / 3_600_000;
+  if (dtHours <= 0) return false; // non-monotonic/duplicate timestamp — can't judge speed, treat as noise
+  const impliedMph = stepMeters / MILES_TO_METERS / dtHours;
+  if (impliedMph > MAX_SPEED_MPH) return false;
 
-  return EARTH_RADIUS_MILES * c;
+  return true;
+}
+
+const DEFAULT_SIMPLIFY_TOLERANCE = 0.0001;
+
+interface SimplifyPoint {
+  x: number;
+  y: number;
+  i: number;
 }
 
 /**
- * Calculate total distance from an array of GPS points
+ * Douglas-Peucker simplification (via simplify-js) for compact storage of a
+ * drive's track. simplify-js operates in plain x/y space, so points are
+ * mapped x=lng, y=lat; the `i` tag round-trips back to original GpsPoints
+ * (with their timestamp/accuracy) by index rather than by object identity.
  */
-export function calculateTotalDistance(points: GpsPoint[]): number {
-  if (points.length < 2) return 0;
-
-  let totalDistance = 0;
-  for (let i = 1; i < points.length; i++) {
-    totalDistance += haversineDistance(points[i - 1], points[i]);
-  }
-
-  return totalDistance;
+export function simplifyTrack(points: GpsPoint[], tolerance = DEFAULT_SIMPLIFY_TOLERANCE): GpsPoint[] {
+  if (points.length <= 2) return points;
+  const mapped: SimplifyPoint[] = points.map((p, i) => ({ x: p.lng, y: p.lat, i }));
+  const kept = simplify(mapped, tolerance, true) as SimplifyPoint[];
+  const keepIndices = new Set(kept.map((p) => p.i));
+  return points.filter((_, i) => keepIndices.has(i));
 }
 
-/**
- * Filter out GPS points with poor accuracy or that are too close together
- * This helps reduce noise and GPS drift
- */
-export function filterGpsPoints(
-  points: GpsPoint[],
-  minDistanceMeters: number = 10,
-  maxAccuracyMeters: number = 50
-): GpsPoint[] {
-  if (points.length === 0) return [];
-
-  const filtered: GpsPoint[] = [points[0]];
-
-  for (let i = 1; i < points.length; i++) {
-    const point = points[i];
-    const lastPoint = filtered[filtered.length - 1];
-
-    // Skip points with poor accuracy
-    if (point.accuracy && point.accuracy > maxAccuracyMeters) {
-      continue;
-    }
-
-    // Skip points that are too close to the last filtered point
-    const distanceMeters = haversineDistance(lastPoint, point) * 1609.34; // Convert miles to meters
-    if (distanceMeters < minDistanceMeters) {
-      continue;
-    }
-
-    filtered.push(point);
-  }
-
-  return filtered;
+/** Encodes a track as a Google-polyline-algorithm string (precision 5). */
+export function encodeTrack(points: GpsPoint[]): string {
+  return encode(points.map((p) => [p.lat, p.lng]));
 }
 
-function toRadians(degrees: number): number {
-  return degrees * (Math.PI / 180);
-}
-
-/**
- * Format distance for display
- */
-export function formatDistance(miles: number): string {
-  if (miles < 0.1) {
-    const feet = miles * 5280;
-    return `${Math.round(feet)} ft`;
-  }
-  return `${miles.toFixed(1)} mi`;
-}
-
-/**
- * Format duration for display
- */
-export function formatDuration(startTime: number, endTime: number | null): string {
-  const end = endTime || Date.now();
-  const durationMs = end - startTime;
-  const minutes = Math.floor(durationMs / 60000);
-  const hours = Math.floor(minutes / 60);
-  const remainingMinutes = minutes % 60;
-
-  if (hours > 0) {
-    return `${hours}h ${remainingMinutes}m`;
-  }
-  return `${minutes}m`;
-}
-
-/**
- * Format dollar amount for display
- */
-export function formatDollarAmount(miles: number, rate: number): string {
-  const amount = miles * rate;
-  return `$${amount.toFixed(2)}`;
-}
-
-/**
- * Calculate trip reimbursement
- */
-export function calculateTripReimbursement(distanceMiles: number, rate: number): number {
-  return distanceMiles * rate;
+/** Decodes a Google-polyline-algorithm string back to plain lat/lng pairs. */
+export function decodeTrack(s: string): LatLng[] {
+  return decode(s).map(([lat, lng]) => ({ lat, lng }));
 }

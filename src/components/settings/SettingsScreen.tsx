@@ -1,10 +1,14 @@
 "use client";
 
-// Grouped, calm settings — not v1's junk drawer. Every field auto-saves
-// (blur for free text, immediately for selects/toggles); nothing here needs
-// a Save button, and nothing here needs a confirmation dialog.
+// Three goal-based groups in the order the work happens: get the report right,
+// keep the ledger safe, then the app itself. Grouping by goal rather than by
+// object means a card only has to be found once — you come here to fix a
+// report, not to visit "Profile". Every field still auto-saves (blur for free
+// text, immediately for selects and toggles); nothing here needs a Save
+// button, and nothing here needs a confirmation dialog.
 
 import { useMemo } from "react";
+import type { ReactNode } from "react";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -50,7 +54,7 @@ export function SettingsScreen() {
   }
 
   return (
-    <Stack spacing={3} sx={{ px: 2.5, pt: 2.5, pb: 4 }}>
+    <Stack spacing={3.5} sx={{ px: 2.5, pt: 2.5, pb: 4 }}>
       <Box component="header">
         <Typography variant="overline" component="p" sx={{ color: "primary.main" }}>
           RVA Miles
@@ -73,28 +77,16 @@ export function SettingsScreen() {
         </Alert>
       ) : null}
 
-      <Box>
-        <SectionLabel>Profile</SectionLabel>
+      {/* Everything that has to be right before a report goes out. */}
+      <Group title="Reporting">
         <ProfileSection settings={data.settings} today={today} onPatch={data.patchSettings} />
-      </Box>
-
-      <Box>
-        <SectionLabel>Pay schedule</SectionLabel>
         <PayScheduleSection settings={data.settings} today={today} onPatch={data.patchSettings} />
-      </Box>
-
-      <Box>
-        <SectionLabel>Report recipient</SectionLabel>
         <RecipientSection settings={data.settings} onPatch={data.patchSettings} />
-      </Box>
+      </Group>
 
-      <Box>
-        <SectionLabel>Appearance</SectionLabel>
-        <AppearanceSection settings={data.settings} onPatch={data.patchSettings} />
-      </Box>
-
-      <Box>
-        <SectionLabel>Data</SectionLabel>
+      {/* Where the ledger lives, and the two ways to move it. The storage fact
+          leads the group because it is the reason backup and sync exist. */}
+      <Group title="Your data" caption="Your trips are stored on this device, not on a server.">
         <DataSection
           settings={data.settings}
           tripCount={data.tripCount}
@@ -103,22 +95,40 @@ export function SettingsScreen() {
           onPatch={data.patchSettings}
           onRefresh={data.refresh}
         />
-      </Box>
-
-      {data.syncConfigured ? (
-        <Box>
-          <SectionLabel>Sync between devices</SectionLabel>
+        {data.syncConfigured ? (
           <SyncSection settings={data.settings} onPatch={data.patchSettings} onRefresh={data.refresh} />
-        </Box>
-      ) : null}
+        ) : null}
+      </Group>
 
-      <InstallCoach />
-
-      <Box>
-        <SectionLabel>About</SectionLabel>
+      {/* InstallCoach renders nothing once installed or dismissed, so this
+          group quietly shrinks to two cards. */}
+      <Group title="App">
+        <AppearanceSection settings={data.settings} onPatch={data.patchSettings} />
+        <InstallCoach />
         <AboutSection />
-      </Box>
+      </Group>
     </Stack>
+  );
+}
+
+interface GroupProps {
+  title: string;
+  /** Optional fact that frames the whole group. Never a restatement of a control inside it. */
+  caption?: string;
+  children: ReactNode;
+}
+
+function Group({ title, caption, children }: GroupProps) {
+  return (
+    <Box>
+      <SectionLabel component="h2">{title}</SectionLabel>
+      {caption ? (
+        <Typography variant="body2" color="text.secondary" sx={{ px: 0.5, mb: 1.5 }}>
+          {caption}
+        </Typography>
+      ) : null}
+      <Stack spacing={1.5}>{children}</Stack>
+    </Box>
   );
 }
 

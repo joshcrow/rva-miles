@@ -3,6 +3,10 @@
 // Frequency + anchor date. Semimonthly/monthly follow the calendar and
 // ignore the anchor (see src/lib/periods.ts); weekly/biweekly cycle off it,
 // so that's the only case the anchor field is shown for.
+//
+// The frequency select is labelled "Pay schedule" because this card no longer
+// sits under a header of that name — it lives inside the "Reporting" group,
+// where a bare "Frequency" would have no referent.
 
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
@@ -62,7 +66,7 @@ export function PayScheduleSection({ settings, today, onPatch }: PayScheduleSect
         <Stack spacing={2}>
           <TextField
             select
-            label="Frequency"
+            label="Pay schedule"
             value={frequency}
             onChange={(e) => commitFrequency(e.target.value as FrequencyChoice)}
             fullWidth

@@ -7,8 +7,10 @@
 
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
+import Stack from "@mui/material/Stack";
 import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
+import Typography from "@mui/material/Typography";
 import { useColorScheme } from "@mui/material/styles";
 import type { Settings } from "@/types";
 
@@ -36,19 +38,26 @@ export function AppearanceSection({ settings, onPatch }: AppearanceSectionProps)
   return (
     <Card>
       <CardContent>
-        <ToggleButtonGroup
-          value={mode ?? "system"}
-          exclusive
-          fullWidth
-          onChange={(_, v: Mode | null) => v && choose(v)}
-          aria-label="Appearance"
-        >
-          {OPTIONS.map((opt) => (
-            <ToggleButton key={opt.value} value={opt.value} aria-label={opt.label}>
-              {opt.label}
-            </ToggleButton>
-          ))}
-        </ToggleButtonGroup>
+        <Stack spacing={1.25}>
+          {/* Named in the card now that the group above it is called "App" —
+              three unlabelled mode buttons under that header would be a guess. */}
+          <Typography variant="body2" color="text.secondary">
+            Appearance
+          </Typography>
+          <ToggleButtonGroup
+            value={mode ?? "system"}
+            exclusive
+            fullWidth
+            onChange={(_, v: Mode | null) => v && choose(v)}
+            aria-label="Appearance"
+          >
+            {OPTIONS.map((opt) => (
+              <ToggleButton key={opt.value} value={opt.value} aria-label={opt.label}>
+                {opt.label}
+              </ToggleButton>
+            ))}
+          </ToggleButtonGroup>
+        </Stack>
       </CardContent>
     </Card>
   );
